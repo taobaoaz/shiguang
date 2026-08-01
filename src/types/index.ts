@@ -108,7 +108,7 @@ declare global {
       platform: string;
       isElectron: boolean;
       checkForUpdates: () => Promise<UpdateCheckResult>;
-      onUpdateAvailable: (callback: (data: UpdateAvailableEvent) => void) => void;
+      onUpdateAvailable: (callback: (data: UpdateAvailableEvent) => void) => () => void;
     };
   }
 }

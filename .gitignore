@@ -49,6 +49,8 @@ coverage/
 # Temp / local artifacts
 *.tmp
 .cache/
+_files_to_push.json
+_prepare_push.py
 
 # Screenshots / local-only
 final.png

@@ -22,6 +22,7 @@ import { clsx } from 'clsx';
 import { LiquidModal } from '@/components/ui/LiquidModal';
 import { useToast } from '@/components/ui/Toast';
 import { useProductionData } from '@/lib/useProductionData';
+import { useApp } from '@/context/AppContext';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -49,8 +50,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, onNewW
   const [profileOpen, setProfileOpen] = useState(false);
   const [profile, setProfile] = useState({ name: '拾光', role: '个人工作台', email: '' });
 
-  // ═══ COS 工作区：从 weflow 生产数据 API 获取 ═══
-  const { status, groups, loading, refresh } = useProductionData();
+  // ═══ PAW 工作区：仅通过 Electron IPC -> 本机 NodeGateway 获取 ═══
+  const { importShiguangState } = useApp();
+  const { status, groups, loading, error, refresh } = useProductionData(importShiguangState);
 
   // 生产工作区列表：3 个群 + 1 个总览
   const workspaces = [
@@ -65,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, onNewW
 
   const createWorkspace = (e: React.FormEvent) => {
     e.preventDefault();
-    show('COS 工作区已连接，数据自动同步');
+    show(status?.connected ? 'PAW 工作区已连接' : 'NodeGateway 未连接，未执行同步');
     setCreateWsOpen(false);
     onNewWorkspace?.();
   };
@@ -125,7 +127,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, onNewW
           <div className="flex items-center justify-between px-2 text-[11px] font-medium text-white/35">
             <span className="flex items-center gap-1.5">
               <span className={clsx('w-1.5 h-1.5 rounded-full', status?.connected ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-amber-400')} />
-              COS 工作区
+              PAW 工作区
+              {error === 'SHIGUANG_STATE_CONFLICT' && <span className="text-amber-300">状态冲突</span>}
             </span>
             <button
               onClick={refresh}

@@ -37,10 +37,11 @@ function MainLayout() {
 
   useEffect(() => {
     if (window.shiguang?.isElectron) {
-      window.shiguang.onUpdateAvailable((data) => {
+      return window.shiguang.onUpdateAvailable((data) => {
         setUpdateBanner({ version: data.latestVersion, url: data.releaseUrl, visible: true });
       });
     }
+    return undefined;
   }, []);
 
   const handleTabChange = (tab: NavTab) => {

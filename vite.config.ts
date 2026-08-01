@@ -2,12 +2,11 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
-import { dataApiPlugin } from './server/data-api';
 
 // https://vitejs.dev/config/
 export default defineConfig({
   base: './',
-  plugins: [react(), tailwindcss(), dataApiPlugin()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -15,6 +14,7 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    host: true,
+    host: '127.0.0.1',
+    strictPort: true,
   },
 });
