@@ -1,0 +1,69 @@
+{
+  "name": "shiguang",
+  "private": true,
+  "version": "2.0.0",
+  "description": "拾光 · 个人生产管理",
+  "author": "拾光",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --port 3000 --host",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "electron:dev": "vite --port 3000 & electron electron/main.cjs --dev",
+    "electron:build": "npm run build && electron-builder --win portable",
+    "electron:dist": "npm run build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.shiguang.app",
+    "productName": "拾光",
+    "directories": {
+      "output": "setup"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "public/shiguang.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "拾光"
+    }
+  },
+  "dependencies": {
+    "canvas-confetti": "^1.9.4",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.4.7",
+    "lucide-react": "^0.475.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.7",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/node": "^22.13.4",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.5.2",
+    "tailwindcss": "^4.0.7",
+    "typescript": "~5.7.3",
+    "vite": "^6.1.1"
+  }
+}
