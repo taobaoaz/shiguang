@@ -1,11 +1,15 @@
 name: Build and Release
+
 on:
   push:
     tags:
       - 'v*'
+
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -13,7 +17,13 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run build
-      - run: npx electron-builder --win --config.directories.output=release
-      - uses: softprops/action-gh-release@v2
+      - name: Package
+        run: npx electron-builder --win --config.directories.output=release --publish=never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
         with:
-          files: release/*.exe
+          files: |
+            release/*.exe
+            release/*.blockmap
