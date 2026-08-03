@@ -23,7 +23,7 @@ const PAGE_INFO: Record<NavTab, { title: string; subtitle: string }> = {
   assets: { title: '设备资产', subtitle: '网络设备 · 服务器 · 终端与系统台账' },
   knowledge: { title: '文件盘', subtitle: '收到 · 分类 · 正在干 · 干完 · 归档' },
   reports: { title: '工作统计', subtitle: '只统计当前工作台中的真实记录' },
-  settings: { title: '设置', subtitle: '外观 · COS 数据 · NodeGateway 同步' },
+  settings: { title: '设置', subtitle: '外观 · AI 接入 · COS 接入 · NodeGateway' },
 };
 
 class AppErrorBoundary extends React.Component<React.PropsWithChildren, { failed: boolean }> {
