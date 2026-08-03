@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Activity, AlertTriangle, Archive, ArrowRight, BookOpen, Box, CheckCircle2,
+  Activity, AlertTriangle, Archive, ArrowRight, Box, CheckCircle2,
   CircleDot, Clock3, Database, FileText, FolderKanban, Gauge, HardDrive,
   Inbox, LayoutDashboard, ListChecks, Network, Plus, Search, Server, Settings2,
   ShieldCheck, Tag, Wrench, XCircle,
@@ -155,7 +155,7 @@ export const DashboardPage: React.FC<{ onNavigate: Navigate }> = ({ onNavigate }
           <Panel>
             <SectionTitle icon={Database} title="数据概览" meta="当前真实条目" />
             <div className="grid grid-cols-2 gap-2">
-              {[['工作事项', businessTasks.length], ['项目', workspaces.length], ['设备资产', assetCount], ['资料知识', knowledgeCount]].map(([label, value]) => (
+              {[['工作事项', businessTasks.length], ['项目', workspaces.length], ['设备资产', assetCount], ['文件索引', knowledgeCount]].map(([label, value]) => (
                 <div key={String(label)} className="rounded-xl bg-white/[0.03] border border-white/[0.07] p-3"><div className="text-[18px] font-bold font-mono text-white">{value}</div><div className="text-[10px] text-white/40 mt-1">{label}</div></div>
               ))}
             </div>
@@ -294,16 +294,41 @@ export const AssetsPage: React.FC = () => {
 };
 
 export const KnowledgePage: React.FC = () => {
-  const { files, addFile } = useApp();
+  const { files, addFile, businessTasks } = useApp();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: '', category: '工作资料', tags: '' });
   const knowledge = files.filter((file) => file.category !== '设备资产');
+  const fileGroups = [
+    { stage: 'RECEIVED', name: '01-收到工作', hint: '尚未完成分类' },
+    { stage: 'TRIAGED', name: '02-分类工作', hint: '已分类，等待处理' },
+    { stage: 'IN_PROGRESS', name: '03-正在干的', hint: '当前受管工作副本' },
+    { stage: 'COMPLETED', name: '04-干完的', hint: '待验收或待归档' },
+    { stage: 'ARCHIVED', name: '05-归档的', hint: 'COS 正式版本仍保留' },
+  ] as const;
   const submit = (event: React.FormEvent) => { event.preventDefault(); if (!form.title.trim()) return; addFile({ title: form.title, category: form.category, size: '本地条目', tags: form.tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) }); setForm({ title: '', category: '工作资料', tags: '' }); setOpen(false); };
-  return <div className="p-1 pb-5"><Panel>
-    <SectionTitle icon={BookOpen} title="资料与知识" meta="工作资料、操作手册、故障知识和制度流程" action={<SmallButton primary onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5" />新增条目</SmallButton>} />
-    {knowledge.length === 0 ? <EmptyState icon={BookOpen} title="还没有知识条目" text="当前版本先建立可检索的元数据条目。真实文件由 NodeGateway 按需物化，不建立独立缓存。" action={<SmallButton primary onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5" />新增第一条</SmallButton>} /> : <div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">{knowledge.map((file) => <article key={file.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-emerald-300"><FileText className="w-4 h-4" /></span><span className="text-[9px] text-white/45 border border-white/10 rounded-full px-2 py-1">元数据</span></div><h3 className="text-[13px] font-semibold text-white mt-3">{file.title}</h3><p className="text-[10px] text-white/50 mt-1">{file.category}　{file.updatedAt}</p><div className="flex flex-wrap gap-1.5 mt-3">{file.tags.length ? file.tags.map((tag) => <span key={tag} className="px-2 py-1 rounded-lg bg-white/[0.04] border border-white/[0.07] text-[9px] text-white/55">{tag}</span>) : <span className="text-[10px] text-white/45">暂无标签</span>}</div></article>)}</div>}
-    <LiquidModal open={open} onClose={() => setOpen(false)} title="新增知识条目" subtitle="只记录真实存在的资料" icon={<BookOpen className="w-5 h-5" />} footer={<div className="flex justify-end gap-2"><SmallButton onClick={() => setOpen(false)}>取消</SmallButton><SmallButton primary type="submit" form="knowledge-form">保存</SmallButton></div>}><form id="knowledge-form" onSubmit={submit} className="space-y-3"><label className="text-[11px] text-white/50 block">标题<input autoFocus required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="liquid-input w-full mt-1.5 rounded-xl px-3.5 py-2.5 text-[12px]" /></label><label className="text-[11px] text-white/50 block">分类<LiquidSelect value={form.category} onChange={(category) => setForm({ ...form, category })} className="mt-1.5" options={['工作资料', '操作手册', '故障知识', '项目资料', '制度流程'].map((value) => ({ value, label: value }))} /></label><label className="text-[11px] text-white/50 block">标签<input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} className="liquid-input w-full mt-1.5 rounded-xl px-3.5 py-2.5 text-[12px]" placeholder="用逗号分隔" /></label></form></LiquidModal>
-  </Panel></div>;
+  return <div className="p-1 pb-5 space-y-4">
+    <Panel>
+      <SectionTitle icon={HardDrive} title="拾光工作盘" meta="D:\\拾光工作盘" />
+      <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
+        {fileGroups.map((group) => {
+          const groupTasks = businessTasks.filter((task) => task.stage === group.stage);
+          const fileCount = new Set(groupTasks.flatMap((task) => task.fileRefs)).size;
+          return <article key={group.stage} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
+            <div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-emerald-300"><HardDrive className="w-4 h-4" /></span><span className="text-[18px] font-bold font-mono text-white">{fileCount}</span></div>
+            <h3 className="text-[12px] font-semibold text-white mt-3">{group.name}</h3>
+            <p className="text-[10px] text-white/45 mt-1">{group.hint}</p>
+            <p className="text-[9px] text-white/30 mt-2">{groupTasks.length} 项工作关联</p>
+          </article>;
+        })}
+      </div>
+      <p className="text-[10px] text-white/45 leading-5 mt-4">界面只显示逻辑文件与受管状态。真实文件由 NodeGateway 从 COS 按需物化，跨组移动不复制 Blob。</p>
+    </Panel>
+    <Panel>
+      <SectionTitle icon={FileText} title="文件索引" meta="工作资料、操作手册、故障知识和制度流程" action={<SmallButton primary onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5" />新增条目</SmallButton>} />
+      {knowledge.length === 0 ? <EmptyState icon={FileText} title="还没有文件条目" text="当前版本先建立可检索的元数据条目。真实文件由 NodeGateway 按需物化，不建立独立缓存。" action={<SmallButton primary onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5" />新增第一条</SmallButton>} /> : <div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">{knowledge.map((file) => <article key={file.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-emerald-300"><FileText className="w-4 h-4" /></span><span className="text-[9px] text-white/45 border border-white/10 rounded-full px-2 py-1">元数据</span></div><h3 className="text-[13px] font-semibold text-white mt-3">{file.title}</h3><p className="text-[10px] text-white/50 mt-1">{file.category}　{file.updatedAt}</p><div className="flex flex-wrap gap-1.5 mt-3">{file.tags.length ? file.tags.map((tag) => <span key={tag} className="px-2 py-1 rounded-lg bg-white/[0.04] border border-white/[0.07] text-[9px] text-white/55">{tag}</span>) : <span className="text-[10px] text-white/45">暂无标签</span>}</div></article>)}</div>}
+      <LiquidModal open={open} onClose={() => setOpen(false)} title="新增文件条目" subtitle="只记录真实存在的资料" icon={<FileText className="w-5 h-5" />} footer={<div className="flex justify-end gap-2"><SmallButton onClick={() => setOpen(false)}>取消</SmallButton><SmallButton primary type="submit" form="knowledge-form">保存</SmallButton></div>}><form id="knowledge-form" onSubmit={submit} className="space-y-3"><label className="text-[11px] text-white/50 block">标题<input autoFocus required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="liquid-input w-full mt-1.5 rounded-xl px-3.5 py-2.5 text-[12px]" /></label><label className="text-[11px] text-white/50 block">分类<LiquidSelect value={form.category} onChange={(category) => setForm({ ...form, category })} className="mt-1.5" options={['工作资料', '操作手册', '故障知识', '项目资料', '制度流程'].map((value) => ({ value, label: value }))} /></label><label className="text-[11px] text-white/50 block">标签<input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} className="liquid-input w-full mt-1.5 rounded-xl px-3.5 py-2.5 text-[12px]" placeholder="用逗号分隔" /></label></form></LiquidModal>
+    </Panel>
+  </div>;
 };
 
 export const ReportsPage: React.FC = () => {

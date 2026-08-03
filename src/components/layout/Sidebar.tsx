@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-  BookOpen, Boxes, ChevronRight, CircleGauge, FolderKanban, Inbox,
+  Boxes, ChevronRight, CircleGauge, FolderKanban, HardDrive, Inbox,
   ListChecks, RefreshCw, Settings, ShieldCheck,
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -19,7 +19,7 @@ const navItems: { id: NavTab; label: string; icon: React.ElementType }[] = [
   { id: 'work', label: '工作事项', icon: ListChecks },
   { id: 'projects', label: '信息化项目', icon: FolderKanban },
   { id: 'assets', label: '设备资产', icon: Boxes },
-  { id: 'knowledge', label: '资料知识', icon: BookOpen },
+  { id: 'knowledge', label: '文件盘', icon: HardDrive },
   { id: 'reports', label: '工作统计', icon: ShieldCheck },
   { id: 'settings', label: '设置', icon: Settings },
 ];
