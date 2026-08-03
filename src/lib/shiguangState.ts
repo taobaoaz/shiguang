@@ -245,6 +245,21 @@ export function parseShiguangState(value: unknown): ShiguangState {
   if (new Set(tasks.map((item) => item.id)).size !== tasks.length) throw new Error('SHIGUANG_TASK_IDS_DUPLICATE');
   if (new Set(files.map((item) => item.id)).size !== files.length) throw new Error('SHIGUANG_FILE_IDS_DUPLICATE');
   if (new Set(fileGroups.map((item) => item.fileId)).size !== fileGroups.length) throw new Error('SHIGUANG_FILE_GROUP_IDS_DUPLICATE');
+  const taskById = new Map(tasks.map((item) => [item.id, item]));
+  const fileIds = new Set(files.map((item) => item.id));
+  const groupForStage: Record<WorkStage, FileGroupEntry['groupId']> = {
+    RECEIVED: 'received', TRIAGED: 'triaged', IN_PROGRESS: 'in-progress', COMPLETED: 'completed', ARCHIVED: 'archived',
+  };
+  for (const item of tasks) {
+    if (item.fileRefs.some((fileId) => !fileIds.has(fileId))) throw new Error('SHIGUANG_TASK_FILE_REF_UNKNOWN');
+  }
+  for (const entry of fileGroups) {
+    const item = taskById.get(entry.workItemId);
+    if (!fileIds.has(entry.fileId)) throw new Error('SHIGUANG_FILE_GROUP_FILE_UNKNOWN');
+    if (!item) throw new Error('SHIGUANG_FILE_GROUP_WORK_UNKNOWN');
+    if (!item.fileRefs.includes(entry.fileId)) throw new Error('SHIGUANG_FILE_GROUP_TASK_LINK_MISSING');
+    if (entry.groupId !== groupForStage[item.stage]) throw new Error('SHIGUANG_FILE_GROUP_STAGE_MISMATCH');
+  }
   const workspaces = stringArray(source.workspaces, 'SHIGUANG_WORKSPACES', 1000);
   if (workspaces.length < 1 || new Set(workspaces).size !== workspaces.length) throw new Error('SHIGUANG_WORKSPACES_INVALID');
   const currentWorkspace = text(source.currentWorkspace, 'SHIGUANG_CURRENT_WORKSPACE', 512);

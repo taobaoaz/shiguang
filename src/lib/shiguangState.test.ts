@@ -41,3 +41,35 @@ test('v2 rejects archived work without completion and archive timestamps', () =>
   }), /COMPLETED_AT_REQUIRED/);
 });
 
+const linkedState = () => ({
+  schema_version: SHIGUANG_STATE_SCHEMA,
+  tasks: [{
+    id: 'WORK-2', title: '整理交换机配置', priority: '中', stage: 'TRIAGED',
+    assignee: { name: '老大', avatar: 'LD', role: '负责人' }, project: '网络', deadline: '待确认', description: '', tags: [],
+    nextAction: '核对配置', attentionFlags: [], sourceRefs: [], evidenceRefs: [], fileRefs: ['FILE-1'],
+    createdAt: '2026-08-03T00:00:00Z', updatedAt: '2026-08-03T00:00:00Z',
+  }],
+  files: [{ id: 'FILE-1', title: '交换机配置', category: '工作资料', size: '仅元数据', author: '老大', updatedAt: '2026-08-03T00:00:00Z', tags: [] }],
+  fileGroups: [{ fileId: 'FILE-1', groupId: 'triaged', workItemId: 'WORK-2', residency: 'metadata-only', updatedAt: '2026-08-03T00:00:00Z' }],
+  workspaces: ['个人工作台'], currentWorkspace: '个人工作台',
+  dailyBrief: { schemaVersion: 'paw.work-state.daily-brief.v1', date: '2026-08-03', generatedAt: '待生成', sourceDigest: '待生成', summary: '', doneIds: [], todoIds: [], attentionIds: [], fileIds: ['FILE-1'] },
+});
+
+test('v2 accepts a task with one corresponding file and matching stage group', () => {
+  const parsed = parseShiguangState(linkedState());
+  assert.equal(parsed.tasks[0].fileRefs[0], 'FILE-1');
+  assert.equal(parsed.fileGroups[0].workItemId, 'WORK-2');
+});
+
+test('v2 rejects an unknown task file reference', () => {
+  const value = linkedState();
+  value.tasks[0].fileRefs = ['FILE-MISSING'];
+  assert.throws(() => parseShiguangState(value), /TASK_FILE_REF_UNKNOWN/);
+});
+
+test('v2 rejects a file group that does not match its task stage', () => {
+  const value = linkedState();
+  value.fileGroups[0].groupId = 'completed';
+  assert.throws(() => parseShiguangState(value), /FILE_GROUP_STAGE_MISMATCH/);
+});
+

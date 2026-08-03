@@ -192,7 +192,7 @@ export const InboxPage: React.FC<{ onNavigate: Navigate }> = ({ onNavigate }) =>
 };
 
 export const WorkItemsPage: React.FC = () => {
-  const { businessTasks, selectedTask, setSelectedTask, setIsNewTaskOpen, moveTask, completeTask, archiveTask } = useApp();
+  const { businessTasks, files, fileGroups, selectedTask, setSelectedTask, setIsNewTaskOpen, moveTask, completeTask, archiveTask } = useApp();
   const [typeFilter, setTypeFilter] = useState('全部');
   const filtered = businessTasks.filter((task) => typeFilter === '全部' || getWorkItemType(task) === typeFilter);
   return (
@@ -213,7 +213,14 @@ export const WorkItemsPage: React.FC = () => {
               {[['类型', getWorkItemType(selectedTask)], ['状态', workStageLabel[selectedTask.stage]], ['项目', selectedTask.project || '待确认'], ['截止', selectedTask.deadline || '待确认'], ['负责人', selectedTask.assignee.name || '老大'], ['来源', getSource(selectedTask)]].map(([label, value]) => <div key={label} className="rounded-xl bg-white/[0.03] border border-white/[0.07] p-3"><div className="text-white/45">{label}</div><div className="text-white/85 mt-1 truncate">{value}</div></div>)}
             </div>
             <div className="rounded-xl bg-white/[0.025] border border-white/[0.07] p-3 text-[10px]"><div className="text-white/45">下一步</div><div className="text-white/80 mt-1">{selectedTask.nextAction}</div>{selectedTask.attentionFlags.length > 0 && <div className="flex flex-wrap gap-1.5 mt-2">{selectedTask.attentionFlags.map((flag) => <span key={flag} className="px-2 py-1 rounded-full border border-amber-400/20 bg-amber-400/10 text-amber-200">{attentionLabel[flag]}</span>)}</div>}</div>
-            <div className="text-[10px] text-white/50">关联文件：{selectedTask.fileRefs.length ? selectedTask.fileRefs.length : '无'}</div>
+            <div>
+              <div className="text-[10px] text-white/50 mb-2">对应文件：{selectedTask.fileRefs.length ? `${selectedTask.fileRefs.length} 个` : '暂无'}</div>
+              {selectedTask.fileRefs.length > 0 && <div className="space-y-2">{selectedTask.fileRefs.map((fileId) => {
+                const file = files.find((item) => item.id === fileId);
+                const group = fileGroups.find((item) => item.fileId === fileId && item.workItemId === selectedTask.id);
+                return <div key={fileId} className="rounded-xl bg-white/[0.025] border border-white/[0.07] px-3 py-2.5 flex items-center justify-between gap-3"><div className="min-w-0"><div className="text-[10px] text-white/80 truncate">{file?.title ?? fileId}</div><div className="text-[9px] text-white/35 mt-0.5">{file?.category ?? '逻辑文件'} · {group?.residency ?? 'metadata-only'}</div></div><FileText className="w-3.5 h-3.5 text-emerald-300 shrink-0" /></div>;
+              })}</div>}
+            </div>
             <div className="flex flex-wrap gap-2">
               {selectedTask.stage === 'RECEIVED' && <SmallButton onClick={() => moveTask(selectedTask.id, 'TRIAGED', '完成分类')}>完成分类</SmallButton>}
               {selectedTask.stage === 'TRIAGED' && <SmallButton primary onClick={() => moveTask(selectedTask.id, 'IN_PROGRESS', '开始处理')}>开始处理</SmallButton>}
@@ -294,25 +301,29 @@ export const AssetsPage: React.FC = () => {
 };
 
 export const KnowledgePage: React.FC = () => {
-  const { files, addFile, businessTasks } = useApp();
+  const { files, fileGroups, addFile, businessTasks, selectedTask } = useApp();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', category: '工作资料', tags: '' });
+  const [form, setForm] = useState({ title: '', category: '工作资料', tags: '', workItemId: selectedTask?.id ?? businessTasks[0]?.id ?? '' });
   const knowledge = files.filter((file) => file.category !== '设备资产');
-  const fileGroups = [
+  const stageGroups = [
     { stage: 'RECEIVED', name: '01-收到工作', hint: '尚未完成分类' },
     { stage: 'TRIAGED', name: '02-分类工作', hint: '已分类，等待处理' },
     { stage: 'IN_PROGRESS', name: '03-正在干的', hint: '当前受管工作副本' },
     { stage: 'COMPLETED', name: '04-干完的', hint: '待验收或待归档' },
     { stage: 'ARCHIVED', name: '05-归档的', hint: 'COS 正式版本仍保留' },
   ] as const;
-  const submit = (event: React.FormEvent) => { event.preventDefault(); if (!form.title.trim()) return; addFile({ title: form.title, category: form.category, size: '本地条目', tags: form.tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) }); setForm({ title: '', category: '工作资料', tags: '' }); setOpen(false); };
+  const openNewFile = () => {
+    setForm((current) => ({ ...current, workItemId: selectedTask?.id ?? businessTasks[0]?.id ?? '' }));
+    setOpen(true);
+  };
+  const submit = (event: React.FormEvent) => { event.preventDefault(); if (!form.title.trim() || !form.workItemId) return; addFile({ title: form.title, category: form.category, size: '本地条目', tags: form.tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) }, form.workItemId); setForm({ title: '', category: '工作资料', tags: '', workItemId: businessTasks[0]?.id ?? '' }); setOpen(false); };
   return <div className="p-1 pb-5 space-y-4">
     <Panel>
       <SectionTitle icon={HardDrive} title="拾光工作盘" meta="D:\\拾光工作盘" />
       <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
-        {fileGroups.map((group) => {
+        {stageGroups.map((group) => {
           const groupTasks = businessTasks.filter((task) => task.stage === group.stage);
-          const fileCount = new Set(groupTasks.flatMap((task) => task.fileRefs)).size;
+          const fileCount = fileGroups.filter((entry) => entry.groupId === ({ RECEIVED: 'received', TRIAGED: 'triaged', IN_PROGRESS: 'in-progress', COMPLETED: 'completed', ARCHIVED: 'archived' } as const)[group.stage]).length;
           return <article key={group.stage} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
             <div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-emerald-300"><HardDrive className="w-4 h-4" /></span><span className="text-[18px] font-bold font-mono text-white">{fileCount}</span></div>
             <h3 className="text-[12px] font-semibold text-white mt-3">{group.name}</h3>
@@ -324,9 +335,20 @@ export const KnowledgePage: React.FC = () => {
       <p className="text-[10px] text-white/45 leading-5 mt-4">界面只显示逻辑文件与受管状态。真实文件由 NodeGateway 从 COS 按需物化，跨组移动不复制 Blob。</p>
     </Panel>
     <Panel>
-      <SectionTitle icon={FileText} title="文件索引" meta="工作资料、操作手册、故障知识和制度流程" action={<SmallButton primary onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5" />新增条目</SmallButton>} />
-      {knowledge.length === 0 ? <EmptyState icon={FileText} title="还没有文件条目" text="当前版本先建立可检索的元数据条目。真实文件由 NodeGateway 按需物化，不建立独立缓存。" action={<SmallButton primary onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5" />新增第一条</SmallButton>} /> : <div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">{knowledge.map((file) => <article key={file.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-emerald-300"><FileText className="w-4 h-4" /></span><span className="text-[9px] text-white/45 border border-white/10 rounded-full px-2 py-1">元数据</span></div><h3 className="text-[13px] font-semibold text-white mt-3">{file.title}</h3><p className="text-[10px] text-white/50 mt-1">{file.category}　{file.updatedAt}</p><div className="flex flex-wrap gap-1.5 mt-3">{file.tags.length ? file.tags.map((tag) => <span key={tag} className="px-2 py-1 rounded-lg bg-white/[0.04] border border-white/[0.07] text-[9px] text-white/55">{tag}</span>) : <span className="text-[10px] text-white/45">暂无标签</span>}</div></article>)}</div>}
-      <LiquidModal open={open} onClose={() => setOpen(false)} title="新增文件条目" subtitle="只记录真实存在的资料" icon={<FileText className="w-5 h-5" />} footer={<div className="flex justify-end gap-2"><SmallButton onClick={() => setOpen(false)}>取消</SmallButton><SmallButton primary type="submit" form="knowledge-form">保存</SmallButton></div>}><form id="knowledge-form" onSubmit={submit} className="space-y-3"><label className="text-[11px] text-white/50 block">标题<input autoFocus required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="liquid-input w-full mt-1.5 rounded-xl px-3.5 py-2.5 text-[12px]" /></label><label className="text-[11px] text-white/50 block">分类<LiquidSelect value={form.category} onChange={(category) => setForm({ ...form, category })} className="mt-1.5" options={['工作资料', '操作手册', '故障知识', '项目资料', '制度流程'].map((value) => ({ value, label: value }))} /></label><label className="text-[11px] text-white/50 block">标签<input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} className="liquid-input w-full mt-1.5 rounded-xl px-3.5 py-2.5 text-[12px]" placeholder="用逗号分隔" /></label></form></LiquidModal>
+      <SectionTitle icon={FileText} title="任务与对应文件" meta="每个文件必须关联具体任务，文件随任务阶段一起换组" action={<SmallButton primary disabled={businessTasks.length === 0} onClick={openNewFile}><Plus className="w-3.5 h-3.5" />关联文件</SmallButton>} />
+      {businessTasks.length === 0 ? <EmptyState icon={FileText} title="请先创建工作事项" text="建立任务后才能登记对应文件，避免产生无归属文件。" /> : <div className="space-y-3">{businessTasks.map((task) => {
+        const linked = task.fileRefs.map((fileId) => files.find((file) => file.id === fileId)).filter((file): file is FileDoc => Boolean(file));
+        return <article key={task.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-[12px] font-semibold text-white truncate">{task.title}</h3><p className="text-[9px] text-white/35 mt-1">{workStageLabel[task.stage]} · {task.id}</p></div><span className="text-[10px] text-emerald-300 shrink-0">{linked.length} 个文件</span></div>{linked.length > 0 ? <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2 mt-3">{linked.map((file) => { const entry = fileGroups.find((group) => group.fileId === file.id && group.workItemId === task.id); return <div key={file.id} className="rounded-xl bg-white/[0.03] border border-white/[0.07] px-3 py-2.5"><div className="text-[10px] text-white/80 truncate">{file.title}</div><div className="text-[9px] text-white/35 mt-1">{file.category} · {entry?.residency ?? 'metadata-only'}</div></div>; })}</div> : <p className="text-[10px] text-white/35 mt-3">暂无对应文件</p>}</article>;
+      })}</div>}
+      {knowledge.length > 0 && <div className="mt-4 pt-4 border-t border-white/[0.06]"><div className="text-[10px] text-white/40 mb-3">全部文件索引</div><div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">{knowledge.map((file) => <article key={file.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-emerald-300"><FileText className="w-4 h-4" /></span><span className="text-[9px] text-white/45 border border-white/10 rounded-full px-2 py-1">元数据</span></div><h3 className="text-[13px] font-semibold text-white mt-3">{file.title}</h3><p className="text-[10px] text-white/50 mt-1">{file.category}　{file.updatedAt}</p></article>)}</div></div>}
+      <LiquidModal open={open} onClose={() => setOpen(false)} title="关联任务文件" subtitle="文件必须归属具体工作事项" icon={<FileText className="w-5 h-5" />} footer={<div className="flex justify-end gap-2"><SmallButton onClick={() => setOpen(false)}>取消</SmallButton><SmallButton primary type="submit" form="knowledge-form">保存关联</SmallButton></div>}>
+        <form id="knowledge-form" onSubmit={submit} className="space-y-3">
+          <label className="text-[11px] text-white/50 block">对应任务<LiquidSelect value={form.workItemId} onChange={(workItemId) => setForm({ ...form, workItemId })} className="mt-1.5" options={businessTasks.map((task) => ({ value: task.id, label: `${workStageLabel[task.stage]} · ${task.title}` }))} /></label>
+          <label className="text-[11px] text-white/50 block">文件名称<input autoFocus required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="liquid-input w-full mt-1.5 rounded-xl px-3.5 py-2.5 text-[12px]" /></label>
+          <label className="text-[11px] text-white/50 block">分类<LiquidSelect value={form.category} onChange={(category) => setForm({ ...form, category })} className="mt-1.5" options={['工作资料', '操作手册', '故障知识', '项目资料', '制度流程'].map((value) => ({ value, label: value }))} /></label>
+          <label className="text-[11px] text-white/50 block">标签<input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} className="liquid-input w-full mt-1.5 rounded-xl px-3.5 py-2.5 text-[12px]" placeholder="用逗号分隔" /></label>
+        </form>
+      </LiquidModal>
     </Panel>
   </div>;
 };

@@ -33,7 +33,7 @@ interface AppContextType {
   files: FileDoc[];
   fileGroups: FileGroupEntry[];
   dailyBrief: DailyBrief;
-  addFile: (file: Partial<FileDoc>) => void;
+  addFile: (file: Partial<FileDoc>, workItemId?: string) => void;
   updateFile: (fileId: string, updates: Partial<FileDoc>) => void;
   accentColor: AccentColor;
   setAccentColor: (color: AccentColor) => void;
@@ -216,19 +216,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentWorkspace(clean);
   }, []);
 
-  const addFile = useCallback((filePartial: Partial<FileDoc>) => {
+  const addFile = useCallback((filePartial: Partial<FileDoc>, workItemId?: string) => {
+    const timestamp = new Date().toISOString();
     const next: FileDoc = {
       id: filePartial.id || `DOC-${Date.now()}`,
       title: filePartial.title || '未命名条目',
       category: filePartial.category || '工作资料',
       size: filePartial.size || '仅元数据',
       author: filePartial.author || '老大',
-      updatedAt: filePartial.updatedAt || new Date().toISOString(),
+      updatedAt: filePartial.updatedAt || timestamp,
       completion: filePartial.completion ?? 100,
       tags: filePartial.tags || [],
     };
     setFiles((prev) => [next, ...prev]);
-  }, []);
+    const task = workItemId ? tasks.find((item) => item.id === workItemId) : undefined;
+    if (!task) return;
+    setFileGroups((prev) => [
+      {
+        fileId: next.id,
+        groupId: groupForStage[task.stage],
+        workItemId: task.id,
+        residency: 'metadata-only',
+        updatedAt: timestamp,
+      },
+      ...prev,
+    ]);
+    updateTask(task.id, { fileRefs: [...task.fileRefs, next.id] });
+  }, [tasks, updateTask]);
 
   const updateFile = useCallback((fileId: string, updates: Partial<FileDoc>) => {
     setFiles((prev) => prev.map((file) => file.id === fileId ? { ...file, ...updates, id: file.id, updatedAt: new Date().toISOString() } : file));
