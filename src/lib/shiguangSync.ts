@@ -11,6 +11,7 @@ export interface SyncSnapshot {
   code: string;
   error: string | null;
   headCount: number;
+  headVersionIds: string[];
   versionId: string | null;
   lastPulledAt: string | null;
   lastSubmittedAt: string | null;
@@ -29,6 +30,7 @@ const INITIAL_SNAPSHOT: SyncSnapshot = {
   code: 'NODEGATEWAY_INITIALIZING',
   error: null,
   headCount: 0,
+  headVersionIds: [],
   versionId: null,
   lastPulledAt: null,
   lastSubmittedAt: null,
@@ -139,6 +141,8 @@ export class ShiguangSyncController {
           phase: 'conflict', configured: true, connected: true, busy: false,
           code: 'SHIGUANG_STATE_CONFLICT', error: 'SHIGUANG_STATE_CONFLICT',
           headCount: result.value.headCount,
+          headVersionIds: result.value.headVersionIds,
+          versionId: null,
         });
         return this.snapshot;
       }
@@ -149,12 +153,13 @@ export class ShiguangSyncController {
         this.update({
           versionId: result.value.versionId,
           headCount: 1,
+          headVersionIds: [result.value.versionId],
           lastPulledAt: this.now(),
           dirty: false,
         });
       } else {
         this.baselineFingerprint = stateFingerprint(this.exportState());
-        this.update({ headCount: 0, versionId: null, dirty: false });
+        this.update({ headCount: 0, headVersionIds: [], versionId: null, dirty: false });
       }
 
       this.readyForDirtyTracking = true;
@@ -190,6 +195,8 @@ export class ShiguangSyncController {
         phase: 'connected', connected: true, busy: false, dirty: false,
         code: 'SHIGUANG_STATE_SUBMITTED', error: null,
         versionId: result.value.version_id,
+        headCount: 1,
+        headVersionIds: [result.value.version_id],
         lastSubmittedAt: this.now(),
         submitStatus: result.value.status,
       });

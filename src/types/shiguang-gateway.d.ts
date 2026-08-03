@@ -29,7 +29,7 @@ interface VersionReceipt {
 
 type PullStateResult =
   | { schemaVersion: 'shiguang.state-pull-result.v1'; status: 'local-only'; headCount: 0 }
-  | { schemaVersion: 'shiguang.state-pull-result.v1'; status: 'conflict'; headCount: number }
+  | { schemaVersion: 'shiguang.state-pull-result.v1'; status: 'conflict'; headCount: number; headVersionIds: string[] }
   | {
       schemaVersion: 'shiguang.state-pull-result.v1';
       status: 'remote-loaded';

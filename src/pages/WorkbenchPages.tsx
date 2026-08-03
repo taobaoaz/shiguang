@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Activity, AlertTriangle, Archive, ArrowRight, Bot, Box, CheckCircle2,
   CircleDot, Clock3, CloudCog, Database, FileText, FolderKanban, Gauge, HardDrive,
-  Inbox, LayoutDashboard, ListChecks, Network, Plus, Search, Server, Settings2,
+  Inbox, LayoutDashboard, ListChecks, Network, PencilLine, Plus, Search, Server, Settings2,
   ShieldCheck, Tag, Wrench, XCircle,
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -11,6 +11,7 @@ import { useShiguangSync } from '@/context/ShiguangSyncContext';
 import { LiquidModal } from '@/components/ui/LiquidModal';
 import { LiquidSelect } from '@/components/ui/LiquidSelect';
 import { WorkflowBoard } from '@/components/workbench/WorkflowBoard';
+import { EditTaskModal } from '@/components/modals/EditTaskModal';
 import type { FileDoc, NavTab, TaskItem, WorkItemType } from '@/types';
 import { attentionLabel, countByStage, fileTagValue, getSource, getWorkItemType, isOverdue, workStageLabel } from '@/lib/workbench';
 import { SHIGUANG_INTEGRATIONS } from '@/lib/integrations';
@@ -62,6 +63,15 @@ const typeIcon: Record<WorkItemType, React.ElementType> = {
   变更: Wrench,
   巡检: ShieldCheck,
 };
+
+const residencyLabel = {
+  'metadata-only': '仅元数据，未占本地空间',
+  'managed-cache': '受管缓存，可自动回收',
+  'pinned-offline': '已固定离线副本',
+  'working-copy': '本地工作副本',
+} as const;
+
+const shortDigest = (value: string | null) => value ? `${value.slice(0, 18)}…${value.slice(-6)}` : '无';
 
 const WorkItemRow: React.FC<{ task: TaskItem; compact?: boolean; onClick?: () => void }> = ({ task, compact, onClick }) => {
   const TypeIcon = typeIcon[getWorkItemType(task)];
@@ -195,6 +205,7 @@ export const InboxPage: React.FC<{ onNavigate: Navigate }> = ({ onNavigate }) =>
 export const WorkItemsPage: React.FC = () => {
   const { businessTasks, files, fileGroups, selectedTask, setSelectedTask, setIsNewTaskOpen, moveTask, completeTask, archiveTask } = useApp();
   const [typeFilter, setTypeFilter] = useState('全部');
+  const [editOpen, setEditOpen] = useState(false);
   const filtered = businessTasks.filter((task) => typeFilter === '全部' || getWorkItemType(task) === typeFilter);
   return (
     <div className="p-1 pb-5 grid 2xl:grid-cols-[1fr_340px] gap-4 items-start">
@@ -206,7 +217,7 @@ export const WorkItemsPage: React.FC = () => {
         <WorkflowBoard tasks={filtered} selectedId={selectedTask?.id} onSelect={setSelectedTask} />
       </Panel>
       <Panel className="2xl:sticky 2xl:top-0">
-        <SectionTitle icon={FileText} title="事项详情" meta={selectedTask ? selectedTask.id : '选择左侧事项'} />
+        <SectionTitle icon={FileText} title="事项详情" meta={selectedTask ? selectedTask.id : '选择左侧事项'} action={selectedTask ? <SmallButton onClick={() => setEditOpen(true)}><PencilLine className="w-3.5 h-3.5" />编辑</SmallButton> : undefined} />
         {selectedTask ? (
           <div className="space-y-4">
             <div><h3 className="text-[15px] font-bold text-white leading-6">{selectedTask.title}</h3><p className="text-[11px] text-white/45 mt-2 leading-5">{selectedTask.description || '暂无补充说明'}</p></div>
@@ -219,7 +230,8 @@ export const WorkItemsPage: React.FC = () => {
               {selectedTask.fileRefs.length > 0 && <div className="space-y-2">{selectedTask.fileRefs.map((fileId) => {
                 const file = files.find((item) => item.id === fileId);
                 const group = fileGroups.find((item) => item.fileId === fileId && item.workItemId === selectedTask.id);
-                return <div key={fileId} className="rounded-xl bg-white/[0.025] border border-white/[0.07] px-3 py-2.5 flex items-center justify-between gap-3"><div className="min-w-0"><div className="text-[10px] text-white/80 truncate">{file?.title ?? fileId}</div><div className="text-[9px] text-white/35 mt-0.5">{file?.category ?? '逻辑文件'} · {group?.residency ?? 'metadata-only'}</div></div><FileText className="w-3.5 h-3.5 text-emerald-300 shrink-0" /></div>;
+                const residency = group?.residency ?? 'metadata-only';
+                return <div key={fileId} className="rounded-xl bg-white/[0.025] border border-white/[0.07] px-3 py-2.5 flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-[11px] text-white/85 truncate">{file?.title ?? fileId}</div><div className="text-[10px] text-white/45 mt-1">{file?.category ?? '逻辑文件'} · {residencyLabel[residency]}</div><div className="text-[9px] font-mono text-white/30 mt-1 break-all">{fileId}</div></div><FileText className="w-3.5 h-3.5 text-emerald-300 shrink-0 mt-0.5" /></div>;
               })}</div>}
             </div>
             <div className="flex flex-wrap gap-2">
@@ -232,6 +244,7 @@ export const WorkItemsPage: React.FC = () => {
           </div>
         ) : <EmptyState icon={FileText} title="尚未选择事项" text="从左侧选择一条事项查看完整信息。" />}
       </Panel>
+      <EditTaskModal open={editOpen} task={selectedTask} onClose={() => setEditOpen(false)} />
     </div>
   );
 };
@@ -339,9 +352,9 @@ export const KnowledgePage: React.FC = () => {
       <SectionTitle icon={FileText} title="任务与对应文件" meta="每个文件必须关联具体任务，文件随任务阶段一起换组" action={<SmallButton primary disabled={businessTasks.length === 0} onClick={openNewFile}><Plus className="w-3.5 h-3.5" />关联文件</SmallButton>} />
       {businessTasks.length === 0 ? <EmptyState icon={FileText} title="请先创建工作事项" text="建立任务后才能登记对应文件，避免产生无归属文件。" /> : <div className="space-y-3">{businessTasks.map((task) => {
         const linked = task.fileRefs.map((fileId) => files.find((file) => file.id === fileId)).filter((file): file is FileDoc => Boolean(file));
-        return <article key={task.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-[12px] font-semibold text-white truncate">{task.title}</h3><p className="text-[9px] text-white/35 mt-1">{workStageLabel[task.stage]} · {task.id}</p></div><span className="text-[10px] text-emerald-300 shrink-0">{linked.length} 个文件</span></div>{linked.length > 0 ? <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2 mt-3">{linked.map((file) => { const entry = fileGroups.find((group) => group.fileId === file.id && group.workItemId === task.id); return <div key={file.id} className="rounded-xl bg-white/[0.03] border border-white/[0.07] px-3 py-2.5"><div className="text-[10px] text-white/80 truncate">{file.title}</div><div className="text-[9px] text-white/35 mt-1">{file.category} · {entry?.residency ?? 'metadata-only'}</div></div>; })}</div> : <p className="text-[10px] text-white/35 mt-3">暂无对应文件</p>}</article>;
+        return <article key={task.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-[12px] font-semibold text-white truncate">{task.title}</h3><p className="text-[10px] text-white/40 mt-1">{workStageLabel[task.stage]} · {task.id}</p></div><span className="text-[10px] text-emerald-300 shrink-0">{linked.length} 个文件</span></div>{linked.length > 0 ? <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2 mt-3">{linked.map((file) => { const entry = fileGroups.find((group) => group.fileId === file.id && group.workItemId === task.id); const residency = entry?.residency ?? 'metadata-only'; return <div key={file.id} className="rounded-xl bg-white/[0.03] border border-white/[0.07] px-3 py-2.5"><div className="text-[11px] text-white/85 truncate">{file.title}</div><div className="text-[10px] text-white/45 mt-1">{file.category} · {residencyLabel[residency]}</div><div className="text-[9px] text-white/30 font-mono mt-1 break-all">{file.id}</div></div>; })}</div> : <p className="text-[10px] text-white/40 mt-3">暂无对应文件</p>}</article>;
       })}</div>}
-      {knowledge.length > 0 && <div className="mt-4 pt-4 border-t border-white/[0.06]"><div className="text-[10px] text-white/40 mb-3">全部文件索引</div><div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">{knowledge.map((file) => <article key={file.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-emerald-300"><FileText className="w-4 h-4" /></span><span className="text-[9px] text-white/45 border border-white/10 rounded-full px-2 py-1">元数据</span></div><h3 className="text-[13px] font-semibold text-white mt-3">{file.title}</h3><p className="text-[10px] text-white/50 mt-1">{file.category}　{file.updatedAt}</p></article>)}</div></div>}
+      {knowledge.length > 0 && <div className="mt-4 pt-4 border-t border-white/[0.06]"><div className="text-[10px] text-white/45 mb-3">全部文件索引</div><div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">{knowledge.map((file) => { const group = fileGroups.find((entry) => entry.fileId === file.id); const residency = group?.residency ?? 'metadata-only'; return <article key={file.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-emerald-300"><FileText className="w-4 h-4" /></span><span className="text-[9px] text-white/55 border border-white/10 rounded-full px-2 py-1">{residency === 'metadata-only' ? '元数据' : '本地可用'}</span></div><h3 className="text-[13px] font-semibold text-white mt-3">{file.title}</h3><p className="text-[10px] text-white/55 mt-1">{file.category} · {residencyLabel[residency]}</p><p className="text-[9px] text-white/30 font-mono mt-2 break-all">{file.id}</p></article>; })}</div></div>}
       <LiquidModal open={open} onClose={() => setOpen(false)} title="关联任务文件" subtitle="文件必须归属具体工作事项" icon={<FileText className="w-5 h-5" />} footer={<div className="flex justify-end gap-2"><SmallButton onClick={() => setOpen(false)}>取消</SmallButton><SmallButton primary type="submit" form="knowledge-form">保存关联</SmallButton></div>}>
         <form id="knowledge-form" onSubmit={submit} className="space-y-3">
           <label className="text-[11px] text-white/50 block">对应任务<LiquidSelect value={form.workItemId} onChange={(workItemId) => setForm({ ...form, workItemId })} className="mt-1.5" options={businessTasks.map((task) => ({ value: task.id, label: `${workStageLabel[task.stage]} · ${task.title}` }))} /></label>
@@ -372,6 +385,8 @@ export const SettingsPage: React.FC = () => {
   const { accentColor, setAccentColor, glassBlur, setGlassBlur, enableConfetti, setEnableConfetti, businessTasks, files, workspaces, legacyLocalStatePresent } = useApp();
   const sync = useShiguangSync();
   const [aiOpen, setAiOpen] = useState(false);
+  const phaseLabel = { initializing: '初始化中', connected: '已连接', offline: '未连接', conflict: '存在冲突', error: '错误' }[sync.phase];
+  const submitLabel = sync.submitStatus === 'committed' ? '已提交并确认' : sync.submitStatus === 'accepted' ? '已受理' : '暂无提交';
   return <div className="p-1 pb-5 grid xl:grid-cols-2 gap-4 items-start">
     <Panel>
       <SectionTitle icon={Settings2} title="界面与体验" meta="只保存 UI 偏好，不保存业务正文" />
@@ -388,6 +403,7 @@ export const SettingsPage: React.FC = () => {
         <div className="rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4 space-y-3">
           <div className="flex justify-between gap-3"><span className="text-white/55">配置入口</span><span className="text-white/85">设置 / AI 接入</span></div>
           <div className="flex justify-between gap-3"><span className="text-white/55">调用出口</span><span className="text-emerald-300">NodeGateway</span></div>
+          <div className="flex justify-between gap-3"><span className="text-white/55">能力接口</span><span className="text-white/75 font-mono text-[10px]">{SHIGUANG_INTEGRATIONS.ai.backendCapability}</span></div>
           <div className="flex justify-between gap-3"><span className="text-white/55">API 密钥</span><span className="text-emerald-300">仅后端保存</span></div>
           <div className="flex justify-between gap-3"><span className="text-white/55">当前状态</span><span className={sync.connected ? 'text-amber-300' : 'text-white/45'}>{sync.connected ? '底座可达，Provider 待配置' : '等待 NodeGateway'}</span></div>
         </div>
@@ -402,9 +418,18 @@ export const SettingsPage: React.FC = () => {
         <div className="rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4 space-y-3">
           <div className="flex justify-between"><span className="text-white/55">业务持久化</span><span className="text-emerald-300">COS 不可变版本</span></div>
           <div className="flex justify-between"><span className="text-white/55">连接方式</span><span className="text-emerald-300">仅 NodeGateway</span></div>
-          <div className="flex justify-between"><span className="text-white/55">同步阶段</span><span className="text-white/80">{sync.phase}</span></div>
+          <div className="flex justify-between"><span className="text-white/55">能力接口</span><span className="text-white/75 font-mono text-[10px]">{SHIGUANG_INTEGRATIONS.cos.backendCapability}</span></div>
+          <div className="flex justify-between"><span className="text-white/55">同步阶段</span><span className="text-white/80">{phaseLabel}</span></div>
           <div className="flex justify-between"><span className="text-white/55">待提交变更</span><span className="text-white/80">{sync.dirty ? '有' : '无'}</span></div>
+          <div className="flex justify-between"><span className="text-white/55">远端 Head</span><span className={sync.headCount > 1 ? 'text-rose-300' : 'text-white/80'}>{sync.headCount} 个</span></div>
+          <div className="flex justify-between gap-3"><span className="text-white/55">当前版本</span><span className="text-white/70 font-mono text-[10px] text-right break-all">{shortDigest(sync.versionId)}</span></div>
+          <div className="flex justify-between gap-3"><span className="text-white/55">上次拉取</span><span className="text-white/70 text-right">{sync.lastPulledAt ?? '尚未拉取'}</span></div>
+          <div className="flex justify-between gap-3"><span className="text-white/55">上次提交</span><span className="text-white/70 text-right">{sync.lastSubmittedAt ?? '尚未提交'}</span></div>
+          <div className="flex justify-between"><span className="text-white/55">提交结果</span><span className="text-white/80">{submitLabel}</span></div>
+          <div className="flex justify-between gap-3"><span className="text-white/55">状态代码</span><span className="text-white/60 font-mono text-[10px] text-right break-all">{sync.code}</span></div>
         </div>
+        {sync.headVersionIds.length > 1 && <div className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] p-4"><div className="text-[11px] font-semibold text-rose-200">检测到多个远端版本，已阻断自动覆盖</div><div className="mt-2 space-y-1">{sync.headVersionIds.map((head) => <div key={head} className="font-mono text-[9px] text-white/45 break-all">{head}</div>)}</div></div>}
+        {sync.error && sync.phase !== 'conflict' && <div role="alert" className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-[10px] text-amber-100">{sync.error}</div>}
         <div className="flex flex-wrap gap-2"><SmallButton primary onClick={() => void sync.refresh()} disabled={sync.busy}><CloudCog className="w-3.5 h-3.5" />检测 COS 通道</SmallButton><SmallButton onClick={() => void sync.pullNow()} disabled={!sync.connected || sync.busy}>拉取已验证版本</SmallButton><SmallButton onClick={() => void sync.submitNow()} disabled={!sync.connected || sync.busy || !sync.dirty}>提交当前版本</SmallButton></div>
         <p className="text-[10px] text-white/45 leading-5">这里不接受 SecretId、SecretKey 或 Bucket 地址。凭据、加密和不可覆盖写入全部由 NodeGateway 管理。</p>
       </div>
@@ -421,6 +446,7 @@ export const SettingsPage: React.FC = () => {
       <div className="space-y-3 text-[11px]">
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3"><div className="text-white/45">Provider</div><div className="text-white/85 mt-1">待在 NodeGateway 配置</div></div>
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3"><div className="text-white/45">模型</div><div className="text-white/85 mt-1">待配置</div></div>
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3"><div className="text-white/45">能力接口</div><div className="text-white/85 mt-1 font-mono break-all">{SHIGUANG_INTEGRATIONS.ai.backendCapability}</div></div>
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3"><div className="text-white/45">允许能力</div><div className="text-white/85 mt-1">候选分类、每日摘要、状态建议；不得直接执行任务</div></div>
         <p className="text-[10px] text-white/45 leading-5">生产 Provider 未激活前保持待配置。后续接入不会在拾光本地保存 API Key，也不会新增通用代理。</p>
       </div>

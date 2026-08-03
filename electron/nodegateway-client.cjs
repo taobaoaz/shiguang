@@ -701,6 +701,7 @@ function createNodeGatewayClient(env = process.env, fetchImpl = globalThis.fetch
         schemaVersion: 'shiguang.state-pull-result.v1',
         status: 'conflict',
         headCount: stateFile.head_version_ids.length,
+        headVersionIds: [...stateFile.head_version_ids],
       };
     }
     if (stateFile.head_version_ids.length === 0) {

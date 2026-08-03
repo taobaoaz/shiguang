@@ -336,6 +336,7 @@ test('state pull imports one verified head and reports conflict without overwrit
   }]))));
   assert.deepEqual(await conflict.pullState(), {
     schemaVersion: 'shiguang.state-pull-result.v1', status: 'conflict', headCount: 2,
+    headVersionIds: [VERSION, `sha256:${'f'.repeat(64)}`],
   });
 });
 

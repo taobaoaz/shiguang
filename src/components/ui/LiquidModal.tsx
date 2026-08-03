@@ -114,7 +114,7 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
 
             <div className="pointer-events-none absolute -top-16 right-0 w-40 h-40 rounded-full bg-emerald-400/10 blur-3xl" />
 
-            <div className="relative z-10 p-5 sm:p-6 space-y-4 overflow-y-auto min-h-0">
+            <div className="relative z-10 p-5 sm:p-6 pb-4 sm:pb-4 shrink-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   {icon && (
@@ -149,25 +149,27 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
                 </motion.button>
               </div>
 
-              <motion.div
+            </div>
+
+            <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.12, duration: 0.3 }}
+                className="relative z-10 min-h-0 overflow-y-auto px-5 sm:px-6 pb-5"
               >
                 {children}
               </motion.div>
 
-              {footer && (
+            {footer && (
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.16, duration: 0.28 }}
-                  className="pt-3 border-t border-white/[0.06]"
+                  className="relative z-10 shrink-0 border-t border-white/[0.06] bg-[#07110f]/80 px-5 sm:px-6 py-3 backdrop-blur-xl"
                 >
                   {footer}
                 </motion.div>
               )}
-            </div>
           </motion.div>
         </motion.div>
       )}

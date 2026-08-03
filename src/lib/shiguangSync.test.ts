@@ -118,6 +118,7 @@ test('multiple remote heads enter conflict mode and block submit', async () => {
       schemaVersion: 'shiguang.state-pull-result.v1' as const,
       status: 'conflict' as const,
       headCount: 2,
+      headVersionIds: [`sha256:${'a'.repeat(64)}`, `sha256:${'b'.repeat(64)}`],
     } }),
     pushState: async () => {
       pushes += 1;
@@ -131,5 +132,6 @@ test('multiple remote heads enter conflict mode and block submit', async () => {
   await assert.rejects(controller.submitNow(), /SHIGUANG_STATE_CONFLICT/);
   controller.stop();
   assert.equal(controller.getSnapshot().phase, 'conflict');
+  assert.deepEqual(controller.getSnapshot().headVersionIds, [`sha256:${'a'.repeat(64)}`, `sha256:${'b'.repeat(64)}`]);
   assert.equal(pushes, 0);
 });

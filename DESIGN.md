@@ -66,11 +66,15 @@
 - `N` 在非输入状态下打开新增事项
 - 全局搜索覆盖事项、项目、资产和资料
 - 新增事项使用统一 `LiquidModal`
+- 编辑事项复用统一 `LiquidModal`，允许修改业务描述字段，但不得改变事项 ID、来源、文件引用或越级改变阶段
+- 弹窗头部、滚动正文和固定操作区三段分离，`900×600` 窗口内保存与取消按钮必须始终可见
 - 下拉选择使用 portal 版 `LiquidSelect`
 - 无本地未提交变更时每 60 秒读取 NodeGateway 最新状态
 - 用户写入通过 NodeGateway 的不可变版本提交；不得直连 COS
 - 工作事项只能进入归档或按合法路径重开，不提供直接删除
 - 新增文件必须选择对应任务；任务详情和文件盘均显示同一组逻辑文件引用
+- 文件条目必须显示逻辑文件 ID 与驻留状态，不能把 `metadata-only` 伪装为已下载文件
+- COS 设置页显示 Head 数、版本、拉取/提交时间、状态代码和冲突版本；多 Head 时阻断覆盖
 - AI 与 COS 使用两个独立设置入口；两者都由 NodeGateway 管理配置和凭据，renderer 不出现密钥输入框
 
 ## 6. 可访问性
@@ -100,6 +104,7 @@
 | 侧栏 | `src/components/layout/Sidebar.tsx` |
 | 全局搜索 | `src/components/layout/TopBar.tsx` |
 | 新增事项 | `src/components/modals/NewTaskModal.tsx` |
+| 编辑事项 | `src/components/modals/EditTaskModal.tsx` |
 | 八个页面 | `src/pages/WorkbenchPages.tsx` |
 | 状态与五阶段转换 | `src/context/AppContext.tsx` |
 | 五阶段工作流 | `src/components/workbench/WorkflowBoard.tsx` |
