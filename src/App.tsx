@@ -14,6 +14,7 @@ import { EditTaskModal } from '@/components/modals/EditTaskModal';
 import { NavTab } from '@/types';
 import { AppProvider, useApp } from '@/context/AppContext';
 import { RouteTransition } from '@/components/ui/PageTransition';
+import { ShiguangSyncProvider } from '@/context/ShiguangSyncContext';
 
 const TAB_ORDER: NavTab[] = [
   'tasks',
@@ -157,7 +158,9 @@ function MainLayout() {
 export default function App() {
   return (
     <AppProvider>
-      <MainLayout />
+      <ShiguangSyncProvider>
+        <MainLayout />
+      </ShiguangSyncProvider>
     </AppProvider>
   );
 }
