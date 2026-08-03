@@ -36,8 +36,8 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
       'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
     ) ?? []);
     window.requestAnimationFrame(() => {
-      const preferred = panelRef.current?.querySelector<HTMLElement>('[autofocus]');
-      (preferred ?? focusable()[0] ?? panelRef.current)?.focus();
+      const preferred = panelRef.current?.querySelector<HTMLElement>('[autofocus], [data-autofocus], input:not([type="hidden"]), textarea, select');
+      (preferred ?? focusable().find((item) => !item.hasAttribute('data-modal-close')) ?? panelRef.current)?.focus();
     });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -99,7 +99,7 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
             exit={{ opacity: 0, y: 20, scale: 0.96, filter: 'blur(8px)' }}
             transition={{ type: 'spring', stiffness: 360, damping: 26, mass: 0.8 }}
             className={clsx(
-              'relative w-full liquid-glass overflow-hidden p-0 text-white z-10',
+              'relative w-full max-h-[calc(100dvh-2rem)] liquid-glass overflow-hidden p-0 text-white z-10 flex flex-col',
               widthClass,
               className
             )}
@@ -114,7 +114,7 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
 
             <div className="pointer-events-none absolute -top-16 right-0 w-40 h-40 rounded-full bg-emerald-400/10 blur-3xl" />
 
-            <div className="relative z-10 p-5 sm:p-6 space-y-4">
+            <div className="relative z-10 p-5 sm:p-6 space-y-4 overflow-y-auto min-h-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   {icon && (
@@ -141,6 +141,7 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
                   whileHover={{ scale: 1.08, rotate: 90 }}
                   whileTap={{ scale: 0.92 }}
                   onClick={onClose}
+                  data-modal-close
                   aria-label={`关闭${title}`}
                   className="liquid-btn-ghost w-9 h-9 rounded-full flex items-center justify-center text-white/45 hover:text-white shrink-0"
                 >

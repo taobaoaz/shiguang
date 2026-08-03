@@ -7,9 +7,20 @@ const state = (workspace = '家庭工作台'): ShiguangState => ({
   schema_version: SHIGUANG_STATE_SCHEMA,
   tasks: [],
   files: [],
+  fileGroups: [],
   workspaces: [workspace],
   currentWorkspace: workspace,
-  settings: { accentColor: 'emerald', glassBlur: 'ultra', enableConfetti: true },
+  dailyBrief: {
+    schemaVersion: 'paw.work-state.daily-brief.v1',
+    date: '2026-08-03',
+    generatedAt: '待生成',
+    sourceDigest: '待生成',
+    summary: '',
+    doneIds: [],
+    todoIds: [],
+    attentionIds: [],
+    fileIds: [],
+  },
 });
 
 const status = () => ({

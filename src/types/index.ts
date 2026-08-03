@@ -11,15 +11,14 @@ export type NavTab =
 export type WorkItemType = '任务' | '服务请求' | '故障' | '变更' | '巡检';
 
 export type Priority = '高' | '中' | '低' | '高优先级' | '紧急';
-export type TaskStatus = '进行中' | '已完成' | '待处理' | '已延期';
+export type WorkStage = 'RECEIVED' | 'TRIAGED' | 'IN_PROGRESS' | 'COMPLETED' | 'ARCHIVED';
+export type AttentionFlag = 'BLOCKED' | 'WAITING' | 'OVERDUE' | 'CONFIRMATION_REQUIRED' | 'IMPORTANT';
 
 export interface TaskItem {
   id: string;
   title: string;
   priority: Priority;
-  status: TaskStatus;
-  time: string; // e.g. "今天 10:00"
-  phase: '需求评审' | '产品设计' | '开发实现' | '测试验证';
+  stage: WorkStage;
   assignee: {
     name: string;
     avatar: string;
@@ -31,6 +30,15 @@ export interface TaskItem {
   tags: string[];
   aiSuggestions?: string[];
   completionProgress?: number; // 0-100%
+  nextAction: string;
+  attentionFlags: AttentionFlag[];
+  sourceRefs: string[];
+  evidenceRefs: string[];
+  fileRefs: string[];
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  archivedAt?: string;
 }
 
 export interface FileDoc {
@@ -42,6 +50,30 @@ export interface FileDoc {
   updatedAt: string;
   completion?: number;
   tags: string[];
+}
+
+export type FileResidency = 'metadata-only' | 'managed-cache' | 'pinned-offline' | 'working-copy';
+
+export interface FileGroupEntry {
+  fileId: string;
+  groupId: 'received' | 'triaged' | 'in-progress' | 'completed' | 'archived';
+  workItemId: string;
+  blobId?: string;
+  versionId?: string;
+  residency: FileResidency;
+  updatedAt: string;
+}
+
+export interface DailyBrief {
+  schemaVersion: 'paw.work-state.daily-brief.v1';
+  date: string;
+  generatedAt: string;
+  sourceDigest: string;
+  summary: string;
+  doneIds: string[];
+  todoIds: string[];
+  attentionIds: string[];
+  fileIds: string[];
 }
 
 // ── 更新检查 ──────────────────────────────────────────────

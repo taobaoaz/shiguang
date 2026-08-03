@@ -14,29 +14,31 @@
 
 | 导航 | 作用 |
 |------|------|
-| 今日工作台 | 重要事项、状态与真实数据概览 |
+| 今日工作台 | 今日已完成、待办、注意事项、文件与三端同步状态 |
 | 收件箱 | 零散输入的统一整理入口 |
 | 工作事项 | 任务、服务请求、故障、变更、巡检 |
 | 信息化项目 | 项目清单和实际完成度 |
 | 设备资产 | 网络、服务器、终端与系统台账 |
 | 资料知识 | 制度、方案、手册、故障知识与复盘 |
 | 工作统计 | 基于现有记录的完成率与分类统计 |
-| 设置 | 外观、本地保存和 NodeGateway 同步 |
+| 设置 | 外观、COS 中枢状态和 NodeGateway 同步 |
+
+工作事项固定分为五层：`收到工作 → 分类工作 → 正在干的 → 干完的 → 归档的`。界面使用横向阶段流，不允许通过删除绕过归档。
 
 ## 3. 视觉系统
 
 ### 画布与材质
 
-- 画布：`#000000`
-- 主面板：半透明渐变叠加 `rgba(12,16,28,.28)`
+- 画布：`#060807`
+- 主面板：`#101A16` 上的半透明 Liquid Glass
 - 模糊：`24px`、`40px`、`56px` 三档
 - 圆角：主面板 `22px`，行项目 `16px`，操作按钮 `12px` 或胶囊
-- 强调色：`#34d399 → #10b981 → #059669`
-- 状态色：cyan 表示处理中，amber 表示等待，rose 表示风险或逾期
+- 强调色：`#27E08A`
+- 状态色：`#48C6D9` 表示处理中，`#F4B860` 表示等待，`#FF6B6B` 表示风险或逾期
 
 ### 文字
 
-- 字体：`Plus Jakarta Sans`，中文回退 `PingFang SC`、`Microsoft YaHei`
+- 字体：`IBM Plex Sans`，中文回退 `Noto Sans SC`、`Microsoft YaHei`
 - 页面标题：20 至 22 像素
 - 首屏主标题：24 至 28 像素
 - 卡片标题：12 至 14 像素
@@ -65,8 +67,9 @@
 - 全局搜索覆盖事项、项目、资产和资料
 - 新增事项使用统一 `LiquidModal`
 - 下拉选择使用 portal 版 `LiquidSelect`
-- 远端提交只在设置页显式触发
-- 删除按钮只处理用户当前选择的本地业务条目
+- 无本地未提交变更时每 60 秒读取 NodeGateway 最新状态
+- 用户写入通过 NodeGateway 的不可变版本提交；不得直连 COS
+- 工作事项只能进入归档或按合法路径重开，不提供直接删除
 
 ## 6. 可访问性
 
@@ -83,7 +86,9 @@
 - 不接入专业网络扫描引擎时，只提供资产登记和检索
 - 不具备附件能力时，只创建资料元数据条目
 - SLA、平均响应时间和覆盖率等指标在真实字段齐全后再启用
-- C·ONE 保持独立，拾光只预留未来接入方向，不修改其现有能力
+- C·ONE 保持独立，只读 DailyBrief；不修改其现有能力和四个任务
+- AI 只输出候选分类、下一步和注意项；完成状态必须来自人或执行 Agent 的证据事件
+- COS 是持久化真源，NodeGateway 是唯一业务缓存，renderer 不保存业务状态
 
 ## 8. 代码映射
 
@@ -94,7 +99,8 @@
 | 全局搜索 | `src/components/layout/TopBar.tsx` |
 | 新增事项 | `src/components/modals/NewTaskModal.tsx` |
 | 八个页面 | `src/pages/WorkbenchPages.tsx` |
-| 状态与本地保存 | `src/context/AppContext.tsx` |
+| 状态与五阶段转换 | `src/context/AppContext.tsx` |
+| 五阶段工作流 | `src/components/workbench/WorkflowBoard.tsx` |
 | NodeGateway 同步 | `src/context/ShiguangSyncContext.tsx` |
 | 工作台语义 | `src/lib/workbench.ts` |
 | 设计令牌与响应式 | `src/index.css` |
