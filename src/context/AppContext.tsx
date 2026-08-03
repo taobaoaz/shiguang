@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState } from 'react';
-import { TaskItem, FileDoc, CardDeckItem, Priority, TaskStatus } from '@/types';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { TaskItem, FileDoc, CardDeckItem } from '@/types';
 import confetti from 'canvas-confetti';
+import { parseShiguangState, SHIGUANG_STATE_SCHEMA, type ShiguangState } from '@/lib/shiguangState';
 
 interface AppContextType {
   // Tasks state
@@ -29,6 +30,8 @@ interface AppContextType {
   setGlassBlur: (blur: 'standard' | 'ultra' | 'max') => void;
   enableConfetti: boolean;
   setEnableConfetti: (val: boolean) => void;
+  exportShiguangState: () => ShiguangState;
+  importShiguangState: (value: unknown) => void;
 
   // Modals state
   isNewTaskOpen: boolean;
@@ -56,6 +59,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [accentColor, setAccentColor] = useState<'emerald' | 'cyan' | 'purple'>('emerald');
   const [glassBlur, setGlassBlur] = useState<'standard' | 'ultra' | 'max'>('ultra');
   const [enableConfetti, setEnableConfetti] = useState(true);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.accent = accentColor;
+    root.dataset.blur = glassBlur;
+    root.style.setProperty('--blur-liquid', glassBlur === 'standard' ? '24px' : glassBlur === 'ultra' ? '40px' : '56px');
+  }, [accentColor, glassBlur]);
 
   // Modals
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
@@ -103,6 +113,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteTask = (taskId: string) => {
+    // 状态合同要求至少保留一个可选任务，避免 selectedTask 变成悬空引用。
+    if (tasks.length <= 1) return;
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     if (selectedTask?.id === taskId) {
       const remaining = tasks.filter((t) => t.id !== taskId);
@@ -131,6 +143,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setFiles((prev) => [newDoc, ...prev]);
   };
 
+  const exportShiguangState = useCallback((): ShiguangState => ({
+    schema_version: SHIGUANG_STATE_SCHEMA,
+    tasks,
+    files,
+    workspaces,
+    currentWorkspace,
+    settings: { accentColor, glassBlur, enableConfetti },
+  }), [accentColor, currentWorkspace, enableConfetti, files, glassBlur, tasks, workspaces]);
+
+  const importShiguangState = useCallback((value: unknown) => {
+    const next = parseShiguangState(value);
+    setTasks(next.tasks);
+    setSelectedTask(next.tasks[0] ?? initialTasks[0]);
+    setFiles(next.files);
+    setWorkspaces(next.workspaces);
+    setCurrentWorkspace(next.currentWorkspace);
+    setAccentColor(next.settings.accentColor);
+    setGlassBlur(next.settings.glassBlur);
+    setEnableConfetti(next.settings.enableConfetti);
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -153,6 +186,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setGlassBlur,
         enableConfetti,
         setEnableConfetti,
+        exportShiguangState,
+        importShiguangState,
         isNewTaskOpen,
         setIsNewTaskOpen,
         editingTask,
