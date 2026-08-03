@@ -16,6 +16,14 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
+      - name: Verify release version
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} does not match package version $version"
+          }
+      - run: npm run test:gateway
       - run: npm run build
       - name: Package
         run: npx electron-builder --win --config.directories.output=release --publish=never

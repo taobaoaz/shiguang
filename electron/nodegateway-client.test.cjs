@@ -372,12 +372,23 @@ test('navigation and IPC trust are locked to the exact main renderer page', asyn
   assert.equal(invoked, false);
 });
 
-test('preload exposes only status, pullState, and pushState', () => {
+test('preload preserves update checks while exposing only three fixed gateway operations', () => {
   const source = fs.readFileSync(require.resolve('./preload.cjs'), 'utf8');
+  assert.match(source, /exposeInMainWorld\('shiguang'/);
+  assert.match(source, /checkForUpdates:/);
+  assert.match(source, /onUpdateAvailable:/);
   assert.match(source, /status:/);
   assert.match(source, /pullState:/);
   assert.match(source, /pushState:/);
+  assert.equal(source.includes("exposeInMainWorld('wenxibuddy'"), false);
   for (const forbidden of ['pullSnapshot:', 'pullContent:', 'pushVersion:', 'proposeDeletion:']) {
     assert.equal(source.includes(forbidden), false);
   }
+});
+
+test('production startup stays usable offline when the token helper is unavailable', () => {
+  const source = fs.readFileSync(require.resolve('./main.cjs'), 'utf8');
+  assert.match(source, /gatewayClient = createNodeGatewayClient\(\{\}\)/);
+  assert.match(source, /Shiguang NodeGateway unavailable/);
+  assert.equal(source.includes('app.exit(1)'), false);
 });
