@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 
 const CLIENT_PROTOCOL = 'paw.shiguang.nodegateway-client.v1';
-const STATE_SCHEMA = 'paw.shiguang.state.v1';
+const STATE_SCHEMA = 'paw.shiguang.state.v2';
+const LEGACY_STATE_SCHEMA = 'paw.shiguang.state.v1';
 const STATE_FILE_ID = 'shiguang-state';
 const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
 const MAX_CONTENT_BYTES = 512 * 1024;
@@ -147,9 +148,9 @@ function stateStringArray(value, maxItems) {
   return value.map((item) => boundedText(item, 512));
 }
 
-function validateStatePayload(value) {
+function validateLegacyStatePayload(value) {
   const state = exactRecord(value, ['schema_version', 'tasks', 'files', 'workspaces', 'currentWorkspace', 'settings']);
-  if (state.schema_version !== STATE_SCHEMA) fail('SHIGUANG_STATE_SCHEMA_INVALID');
+  if (state.schema_version !== LEGACY_STATE_SCHEMA) fail('SHIGUANG_STATE_SCHEMA_INVALID');
   if (!Array.isArray(state.tasks) || state.tasks.length < 1 || state.tasks.length > 5000) fail('SHIGUANG_STATE_INVALID');
   const taskIds = new Set();
   for (const task of state.tasks) {
@@ -208,6 +209,110 @@ function validateStatePayload(value) {
   enumField(state.settings.accentColor, new Set(['emerald', 'cyan', 'purple']));
   enumField(state.settings.glassBlur, new Set(['standard', 'ultra', 'max']));
   booleanField(state.settings.enableConfetti);
+  return state;
+}
+
+function stateLogicalArray(value, maxItems) {
+  const values = stateStringArray(value, maxItems);
+  if (new Set(values).size !== values.length) fail('SHIGUANG_STATE_INVALID');
+  for (const item of values) stringField(item, LOGICAL_ID, 256);
+  return values;
+}
+
+function validateStatePayload(value, options = {}) {
+  if (isRecord(value) && value.schema_version === LEGACY_STATE_SCHEMA) {
+    if (!options.allowLegacy) fail('SHIGUANG_STATE_SCHEMA_INVALID');
+    return validateLegacyStatePayload(value);
+  }
+  const state = exactRecord(value, ['schema_version', 'tasks', 'files', 'fileGroups', 'workspaces', 'currentWorkspace', 'dailyBrief']);
+  if (state.schema_version !== STATE_SCHEMA) fail('SHIGUANG_STATE_SCHEMA_INVALID');
+  if (!Array.isArray(state.tasks) || state.tasks.length > 5000) fail('SHIGUANG_STATE_INVALID');
+  const taskIds = new Set();
+  for (const task of state.tasks) {
+    const allowed = [
+      'id', 'title', 'priority', 'stage', 'assignee', 'project', 'deadline', 'description', 'tags',
+      'aiSuggestions', 'completionProgress', 'nextAction', 'attentionFlags', 'sourceRefs',
+      'evidenceRefs', 'fileRefs', 'createdAt', 'updatedAt', 'completedAt', 'archivedAt',
+    ];
+    const required = allowed.filter((key) => !['aiSuggestions', 'completionProgress', 'completedAt', 'archivedAt'].includes(key));
+    exactRecord(task, allowed, required);
+    boundedText(task.id, 256);
+    if (taskIds.has(task.id)) fail('SHIGUANG_STATE_INVALID');
+    taskIds.add(task.id);
+    boundedText(task.title, 1000);
+    enumField(task.priority, new Set(['高', '中', '低', '高优先级', '紧急']));
+    enumField(task.stage, new Set(['RECEIVED', 'TRIAGED', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED']));
+    exactRecord(task.assignee, ['name', 'avatar', 'role']);
+    boundedText(task.assignee.name, 256);
+    boundedText(task.assignee.avatar, 128);
+    boundedText(task.assignee.role, 256);
+    boundedText(task.project, 512);
+    boundedText(task.deadline, 128);
+    boundedText(task.description, 10000, true);
+    stateStringArray(task.tags, 128);
+    boundedText(task.nextAction, 1000);
+    const attention = stateStringArray(task.attentionFlags, 16);
+    for (const flag of attention) enumField(flag, new Set(['BLOCKED', 'WAITING', 'OVERDUE', 'CONFIRMATION_REQUIRED', 'IMPORTANT']));
+    stateLogicalArray(task.sourceRefs, 128);
+    stateLogicalArray(task.evidenceRefs, 128);
+    stateLogicalArray(task.fileRefs, 128);
+    boundedText(task.createdAt, 64);
+    boundedText(task.updatedAt, 64);
+    if (Object.prototype.hasOwnProperty.call(task, 'completedAt')) boundedText(task.completedAt, 64);
+    if (Object.prototype.hasOwnProperty.call(task, 'archivedAt')) boundedText(task.archivedAt, 64);
+    if (['COMPLETED', 'ARCHIVED'].includes(task.stage) && !Object.prototype.hasOwnProperty.call(task, 'completedAt')) fail('SHIGUANG_STATE_INVALID');
+    if (task.stage === 'ARCHIVED' && !Object.prototype.hasOwnProperty.call(task, 'archivedAt')) fail('SHIGUANG_STATE_INVALID');
+    if (task.stage !== 'ARCHIVED' && Object.prototype.hasOwnProperty.call(task, 'archivedAt')) fail('SHIGUANG_STATE_INVALID');
+    if (Object.prototype.hasOwnProperty.call(task, 'aiSuggestions')) stateStringArray(task.aiSuggestions, 128);
+    if (Object.prototype.hasOwnProperty.call(task, 'completionProgress')) {
+      if (!Number.isFinite(task.completionProgress) || task.completionProgress < 0 || task.completionProgress > 100) fail('SHIGUANG_STATE_INVALID');
+    }
+  }
+  if (!Array.isArray(state.files) || state.files.length > 10000) fail('SHIGUANG_STATE_INVALID');
+  const fileIds = new Set();
+  for (const file of state.files) {
+    const allowed = ['id', 'title', 'category', 'size', 'author', 'updatedAt', 'completion', 'tags'];
+    exactRecord(file, allowed, allowed.filter((key) => key !== 'completion'));
+    boundedText(file.id, 256);
+    if (fileIds.has(file.id)) fail('SHIGUANG_STATE_INVALID');
+    fileIds.add(file.id);
+    boundedText(file.title, 1000);
+    boundedText(file.category, 256);
+    boundedText(file.size, 128);
+    boundedText(file.author, 256);
+    boundedText(file.updatedAt, 128);
+    stateStringArray(file.tags, 128);
+    if (Object.prototype.hasOwnProperty.call(file, 'completion') && (!Number.isFinite(file.completion) || file.completion < 0 || file.completion > 100)) fail('SHIGUANG_STATE_INVALID');
+  }
+  if (!Array.isArray(state.fileGroups) || state.fileGroups.length > 10000) fail('SHIGUANG_STATE_INVALID');
+  const groupedFileIds = new Set();
+  for (const entry of state.fileGroups) {
+    const allowed = ['fileId', 'groupId', 'workItemId', 'blobId', 'versionId', 'residency', 'updatedAt'];
+    exactRecord(entry, allowed, ['fileId', 'groupId', 'workItemId', 'residency', 'updatedAt']);
+    stringField(entry.fileId, LOGICAL_ID, 256);
+    if (groupedFileIds.has(entry.fileId)) fail('SHIGUANG_STATE_INVALID');
+    groupedFileIds.add(entry.fileId);
+    enumField(entry.groupId, new Set(['received', 'triaged', 'in-progress', 'completed', 'archived']));
+    boundedText(entry.workItemId, 256);
+    if (Object.prototype.hasOwnProperty.call(entry, 'blobId')) stringField(entry.blobId, LOGICAL_ID, 256);
+    if (Object.prototype.hasOwnProperty.call(entry, 'versionId')) stringField(entry.versionId, LOGICAL_ID, 256);
+    enumField(entry.residency, new Set(['metadata-only', 'managed-cache', 'pinned-offline', 'working-copy']));
+    boundedText(entry.updatedAt, 64);
+  }
+  const workspaces = stateStringArray(state.workspaces, 1000);
+  if (workspaces.length < 1 || new Set(workspaces).size !== workspaces.length) fail('SHIGUANG_STATE_INVALID');
+  boundedText(state.currentWorkspace, 512);
+  if (!workspaces.includes(state.currentWorkspace)) fail('SHIGUANG_STATE_INVALID');
+  exactRecord(state.dailyBrief, ['schemaVersion', 'date', 'generatedAt', 'sourceDigest', 'summary', 'doneIds', 'todoIds', 'attentionIds', 'fileIds']);
+  if (state.dailyBrief.schemaVersion !== 'paw.work-state.daily-brief.v1') fail('SHIGUANG_STATE_INVALID');
+  boundedText(state.dailyBrief.date, 32);
+  boundedText(state.dailyBrief.generatedAt, 64);
+  boundedText(state.dailyBrief.sourceDigest, 80);
+  boundedText(state.dailyBrief.summary, 4000, true);
+  stateLogicalArray(state.dailyBrief.doneIds, 5000);
+  stateLogicalArray(state.dailyBrief.todoIds, 5000);
+  stateLogicalArray(state.dailyBrief.attentionIds, 5000);
+  stateLogicalArray(state.dailyBrief.fileIds, 10000);
   return state;
 }
 
@@ -615,7 +720,7 @@ function createNodeGatewayClient(env = process.env, fetchImpl = globalThis.fetch
     } catch {
       fail('SHIGUANG_STATE_JSON_INVALID');
     }
-    validateStatePayload(state);
+    validateStatePayload(state, { allowLegacy: true });
     return {
       schemaVersion: 'shiguang.state-pull-result.v1',
       status: 'remote-loaded',

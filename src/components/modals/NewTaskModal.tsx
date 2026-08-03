@@ -50,10 +50,8 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, onA
     onAddTask({
       id: `WORK-${Date.now()}`,
       title: title.trim(),
-      phase: '需求评审',
       priority,
-      status: '待处理',
-      time: new Date().toISOString().slice(0, 10),
+      stage: 'RECEIVED',
       assignee: { name: assignee.trim() || '老大', avatar: (assignee.trim() || '老大').slice(0, 2), role: '负责人' },
       project,
       deadline: deadline || '待确认',
@@ -61,6 +59,11 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, onA
       tags: [`类型:${type}`, '来源:手动录入', ...manualTags],
       aiSuggestions: [],
       completionProgress: 0,
+      nextAction: '待分类',
+      attentionFlags: [],
+      sourceRefs: [`source:manual:${Date.now()}`],
+      evidenceRefs: [],
+      fileRefs: [],
     });
     close();
   };
@@ -86,7 +89,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, onA
       <form id="new-work-form" onSubmit={handleSubmit} className="space-y-3.5">
         <div>
           <label htmlFor="work-title" className="block text-[11px] text-white/45 mb-1.5">事项名称 <span className="text-emerald-300">*</span></label>
-          <input id="work-title" autoFocus className={field} required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：处理办公楼核心交换机告警" />
+          <input id="work-title" autoFocus data-autofocus className={field} required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：处理办公楼核心交换机告警" />
         </div>
 
         <div className="grid grid-cols-2 gap-3">

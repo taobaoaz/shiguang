@@ -10,6 +10,8 @@ const {
 const { loadClientToken } = require('./client-token-bridge.cjs');
 const { buildGatewayEnvironment, isAllowedRendererUrl, isTrustedIpcEvent } = require('./security-policy.cjs');
 
+app.commandLine.appendSwitch('disable-http-cache');
+
 const isDev = process.argv.includes('--dev');
 const devUrl = 'http://127.0.0.1:3000';
 const prodIndexPath = path.resolve(__dirname, '../dist/index.html');
@@ -21,6 +23,7 @@ const rendererPolicy = Object.freeze({
 const GITHUB_REPO = 'taobaoaz/shiguang';
 const UPDATE_TIMEOUT_MS = 5000;
 const MAX_UPDATE_RESPONSE_BYTES = 1024 * 1024;
+const RUNTIME_PARTITION = 'shiguang-runtime';
 let gatewayClient = createNodeGatewayClient({});
 let mainWindow = null;
 
@@ -207,6 +210,7 @@ function createWindow() {
       sandbox: true,
       webSecurity: true,
       devTools: isDev,
+      partition: RUNTIME_PARTITION,
     },
   });
 
@@ -229,8 +233,10 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   await initializeGatewayClient();
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  const runtimeSession = session.fromPartition(RUNTIME_PARTITION);
+  await runtimeSession.clearCache();
+  runtimeSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+  runtimeSession.setPermissionCheckHandler(() => false);
   registerIpc();
   createWindow();
   setTimeout(async () => {

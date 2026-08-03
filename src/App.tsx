@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { MotionConfig } from 'framer-motion';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import {
@@ -22,7 +23,7 @@ const PAGE_INFO: Record<NavTab, { title: string; subtitle: string }> = {
   assets: { title: '设备资产', subtitle: '网络设备 · 服务器 · 终端与系统台账' },
   knowledge: { title: '资料知识', subtitle: '制度 · 方案 · 手册 · 复盘与经验' },
   reports: { title: '工作统计', subtitle: '只统计当前工作台中的真实记录' },
-  settings: { title: '设置', subtitle: '外观 · 本地数据 · NodeGateway 同步' },
+  settings: { title: '设置', subtitle: '外观 · COS 数据 · NodeGateway 同步' },
 };
 
 class AppErrorBoundary extends React.Component<React.PropsWithChildren, { failed: boolean }> {
@@ -116,11 +117,13 @@ function MainLayout() {
 export default function App() {
   return (
     <AppErrorBoundary>
-      <AppProvider>
-        <ShiguangSyncProvider>
-          <MainLayout />
-        </ShiguangSyncProvider>
-      </AppProvider>
+      <MotionConfig reducedMotion="user">
+        <AppProvider>
+          <ShiguangSyncProvider>
+            <MainLayout />
+          </ShiguangSyncProvider>
+        </AppProvider>
+      </MotionConfig>
     </AppErrorBoundary>
   );
 }

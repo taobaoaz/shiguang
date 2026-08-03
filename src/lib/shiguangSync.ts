@@ -85,7 +85,10 @@ export class ShiguangSyncController {
     const generation = ++this.generation;
     await this.pullNow();
     if (!this.started || generation !== this.generation) return;
-    this.timer = setInterval(() => void this.refreshStatus(), this.pollMs);
+    this.timer = setInterval(() => {
+      if (!this.snapshot.busy && !this.snapshot.dirty && this.snapshot.phase !== 'conflict') void this.pullNow();
+      else void this.refreshStatus();
+    }, this.pollMs);
   }
 
   stop(): void {

@@ -113,16 +113,22 @@ function versionReceipt(fileId = 'shiguang-state') {
 
 function validState() {
   return {
-    schema_version: 'paw.shiguang.state.v1',
+    schema_version: 'paw.shiguang.state.v2',
     tasks: [{
-      id: 'TASK-1', title: '保底任务', priority: '中', status: '待处理', time: '今天', phase: '需求评审',
+      id: 'TASK-1', title: '保底任务', priority: '中', stage: 'RECEIVED',
       assignee: { name: '拾光', avatar: 'SG', role: '助理' }, project: 'A', deadline: '待确认',
-      description: '', tags: [],
+      description: '', tags: [], nextAction: '待分类', attentionFlags: [],
+      sourceRefs: ['source:test'], evidenceRefs: [], fileRefs: [],
+      createdAt: '2026-08-03T00:00:00Z', updatedAt: '2026-08-03T00:00:00Z',
     }],
     files: [],
+    fileGroups: [],
     workspaces: ['A'],
     currentWorkspace: 'A',
-    settings: { accentColor: 'emerald', glassBlur: 'ultra', enableConfetti: true },
+    dailyBrief: {
+      schemaVersion: 'paw.work-state.daily-brief.v1', date: '2026-08-03', generatedAt: '待生成',
+      sourceDigest: '待生成', summary: '', doneIds: [], todoIds: [], attentionIds: [], fileIds: [],
+    },
   };
 }
 
@@ -323,7 +329,7 @@ test('state pull imports one verified head and reports conflict without overwrit
   }));
   const result = await client.pullState();
   assert.equal(result.status, 'remote-loaded');
-  assert.equal(result.state.schema_version, 'paw.shiguang.state.v1');
+  assert.equal(result.state.schema_version, 'paw.shiguang.state.v2');
 
   const conflict = createNodeGatewayClient(ENV, withBootstrap(async () => jsonResponse(snapshot([{
     file_id: 'shiguang-state', head_version_ids: [VERSION, `sha256:${'f'.repeat(64)}`], classification: 'L2', status: 'conflict',
@@ -346,7 +352,7 @@ test('state push creates a version only from zero or one head and never auto-del
   assert.deepEqual(sent.parent_version_ids, []);
   assert.equal(sent.classification, 'L2');
   assert.equal(sent.file_id, 'shiguang-state');
-  await assert.rejects(() => client.pushState({ state: { ...state, tasks: [] } }), /SHIGUANG_STATE_INVALID/);
+  await assert.rejects(() => client.pushState({ state: { ...state, tasks: [{ ...state.tasks[0], stage: 'ARCHIVED' }] } }), /SHIGUANG_STATE_INVALID/);
 });
 
 test('navigation and IPC trust are locked to the exact main renderer page', async () => {

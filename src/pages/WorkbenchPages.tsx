@@ -10,8 +10,9 @@ import { useApp } from '@/context/AppContext';
 import { useShiguangSync } from '@/context/ShiguangSyncContext';
 import { LiquidModal } from '@/components/ui/LiquidModal';
 import { LiquidSelect } from '@/components/ui/LiquidSelect';
+import { WorkflowBoard } from '@/components/workbench/WorkflowBoard';
 import type { FileDoc, NavTab, TaskItem, WorkItemType } from '@/types';
-import { fileTagValue, getSource, getWorkItemType, isOverdue, phaseLabel, todayIso } from '@/lib/workbench';
+import { attentionLabel, countByStage, fileTagValue, getSource, getWorkItemType, isOverdue, workStageLabel } from '@/lib/workbench';
 
 type Navigate = (tab: NavTab) => void;
 
@@ -74,7 +75,7 @@ const WorkItemRow: React.FC<{ task: TaskItem; compact?: boolean; onClick?: () =>
           </div>
           <div className="flex items-center gap-2 mt-1.5 text-[10px] text-white/45 flex-wrap">
             <span>{getWorkItemType(task)}</span><span className="text-white/20">•</span>
-            <span>{phaseLabel[task.phase]}</span>
+            <span>{workStageLabel[task.stage]}</span>
             {task.project && <><span className="text-white/20">•</span><span>{task.project}</span></>}
             {!compact && <><span className="text-white/20">•</span><span className={isOverdue(task) ? 'text-rose-300' : ''}>{task.deadline || '待确认'}</span></>}
           </div>
@@ -96,12 +97,11 @@ const StatCard: React.FC<{ label: string; value: number; hint: string; icon: Rea
 );
 
 export const DashboardPage: React.FC<{ onNavigate: Navigate }> = ({ onNavigate }) => {
-  const { businessTasks, files, workspaces, setIsNewTaskOpen, setSelectedTask } = useApp();
+  const { businessTasks, files, workspaces, dailyBrief, setIsNewTaskOpen, setSelectedTask } = useApp();
   const { connected, phase, dirty } = useShiguangSync();
-  const pending = businessTasks.filter((task) => task.status === '待处理');
-  const active = businessTasks.filter((task) => task.status === '进行中');
+  const counts = countByStage(businessTasks);
   const overdue = businessTasks.filter(isOverdue);
-  const today = businessTasks.filter((task) => task.deadline === todayIso() || task.status === '待处理').slice(0, 5);
+  const today = businessTasks.filter((task) => dailyBrief.todoIds.includes(task.id) || ['RECEIVED', 'TRIAGED', 'IN_PROGRESS'].includes(task.stage)).slice(0, 5);
   const assetCount = files.filter((file) => file.category === '设备资产').length;
   const knowledgeCount = files.length - assetCount;
   const dateLabel = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
@@ -122,11 +122,12 @@ export const DashboardPage: React.FC<{ onNavigate: Navigate }> = ({ onNavigate }
         </div>
       </Panel>
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <StatCard label="待处理" value={pending.length} hint="尚未开始的事项" icon={CircleDot} tone="text-amber-300" />
-        <StatCard label="处理中" value={active.length} hint="正在推进的事项" icon={Activity} tone="text-cyan-300" />
-        <StatCard label="已逾期" value={overdue.length} hint="需要优先检查" icon={AlertTriangle} tone="text-rose-300" />
-        <StatCard label="信息化项目" value={workspaces.length} hint="当前登记项目" icon={FolderKanban} />
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+        <StatCard label="收到工作" value={counts.RECEIVED} hint="等待分类" icon={Inbox} tone="text-amber-300" />
+        <StatCard label="分类工作" value={counts.TRIAGED} hint="已经可以领取" icon={CircleDot} tone="text-sky-300" />
+        <StatCard label="正在干的" value={counts.IN_PROGRESS} hint="当前执行中" icon={Activity} tone="text-cyan-300" />
+        <StatCard label="干完的" value={counts.COMPLETED} hint="等待归档或复盘" icon={CheckCircle2} />
+        <StatCard label="归档的" value={counts.ARCHIVED} hint={`${overdue.length} 项逾期需注意`} icon={Archive} tone="text-white/50" />
       </div>
 
       <div className="grid xl:grid-cols-[1.3fr_.7fr] gap-4 items-start">
@@ -141,9 +142,12 @@ export const DashboardPage: React.FC<{ onNavigate: Navigate }> = ({ onNavigate }
 
         <div className="space-y-4">
           <Panel>
-            <SectionTitle icon={Gauge} title="工作台状态" meta="本机与 PAW 同步" />
+            <SectionTitle icon={Gauge} title="今日简报" meta={dailyBrief.generatedAt === '待生成' ? '等待 WorkBuddy 每日汇总' : `更新于 ${dailyBrief.generatedAt}`} />
             <div className="space-y-3 text-[11px]">
-              <div className="flex items-center justify-between"><span className="text-white/50">本地保存</span><span className="text-emerald-300 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />已启用</span></div>
+              <p className="text-white/60 leading-5">{dailyBrief.summary || '今日摘要尚未生成；实时状态仍按工作事件显示。'}</p>
+              <div className="flex items-center justify-between"><span className="text-white/50">完成 / 待办</span><span className="text-white/80 font-mono">{dailyBrief.doneIds.length} / {dailyBrief.todoIds.length}</span></div>
+              <div className="flex items-center justify-between"><span className="text-white/50">注意事项</span><span className={dailyBrief.attentionIds.length ? 'text-amber-300' : 'text-emerald-300'}>{dailyBrief.attentionIds.length}</span></div>
+              <div className="flex items-center justify-between"><span className="text-white/50">COS 中心存储</span><span className={connected ? 'text-emerald-300' : 'text-amber-300'}>{connected ? '可达' : '等待 NodeGateway'}</span></div>
               <div className="flex items-center justify-between"><span className="text-white/50">NodeGateway</span><span className={connected ? 'text-emerald-300' : 'text-amber-300'}>{connected ? '已连接' : '未连接'}</span></div>
               <div className="flex items-center justify-between"><span className="text-white/50">同步状态</span><span className="text-white/70">{!connected ? '等待连接' : phase === 'conflict' ? '存在冲突' : dirty ? '本地有变更' : '无待提交变更'}</span></div>
             </div>
@@ -163,8 +167,8 @@ export const DashboardPage: React.FC<{ onNavigate: Navigate }> = ({ onNavigate }
 };
 
 export const InboxPage: React.FC<{ onNavigate: Navigate }> = ({ onNavigate }) => {
-  const { businessTasks, updateTask, setSelectedTask, setIsNewTaskOpen } = useApp();
-  const inboxItems = businessTasks.filter((task) => task.status === '待处理');
+  const { businessTasks, moveTask, setSelectedTask, setIsNewTaskOpen } = useApp();
+  const inboxItems = businessTasks.filter((task) => task.stage === 'RECEIVED');
   return (
     <div className="p-1 pb-5">
       <Panel>
@@ -176,7 +180,7 @@ export const InboxPage: React.FC<{ onNavigate: Navigate }> = ({ onNavigate }) =>
                 <div className="flex-1 min-w-0"><div className="text-[12px] font-semibold text-white truncate">{task.title}</div><div className="text-[10px] text-white/40 mt-1">来源：{getSource(task)}　类型：{getWorkItemType(task)}　截止：{task.deadline}</div></div>
                 <div className="flex gap-2 shrink-0">
                   <SmallButton onClick={() => { setSelectedTask(task); onNavigate('work'); }}>查看详情</SmallButton>
-                  <SmallButton primary onClick={() => updateTask(task.id, { status: '进行中', phase: '产品设计' })}>开始处理</SmallButton>
+                  <SmallButton primary onClick={() => moveTask(task.id, 'TRIAGED', '已完成分类，可由 Codex 或 WorkBuddy 领取。')}>完成分类</SmallButton>
                 </div>
               </div>
             ))}
@@ -188,34 +192,34 @@ export const InboxPage: React.FC<{ onNavigate: Navigate }> = ({ onNavigate }) =>
 };
 
 export const WorkItemsPage: React.FC = () => {
-  const { businessTasks, selectedTask, setSelectedTask, setIsNewTaskOpen, updateTask, completeTask, deleteTask } = useApp();
+  const { businessTasks, selectedTask, setSelectedTask, setIsNewTaskOpen, moveTask, completeTask, archiveTask } = useApp();
   const [typeFilter, setTypeFilter] = useState('全部');
-  const [statusFilter, setStatusFilter] = useState('全部');
-  const filtered = businessTasks.filter((task) => (typeFilter === '全部' || getWorkItemType(task) === typeFilter) && (statusFilter === '全部' || task.status === statusFilter));
+  const filtered = businessTasks.filter((task) => typeFilter === '全部' || getWorkItemType(task) === typeFilter);
   return (
-    <div className="p-1 pb-5 grid xl:grid-cols-[1fr_340px] gap-4 items-start">
+    <div className="p-1 pb-5 grid 2xl:grid-cols-[1fr_340px] gap-4 items-start">
       <Panel>
-        <SectionTitle icon={ListChecks} title="工作事项" meta="任务、请求、故障、变更和巡检共用一套流程" action={<SmallButton primary onClick={() => setIsNewTaskOpen(true)}><Plus className="w-3.5 h-3.5" />新增事项</SmallButton>} />
+        <SectionTitle icon={ListChecks} title="五层工作流" meta="收到 → 分类 → 正在干 → 干完 → 归档" action={<SmallButton primary onClick={() => setIsNewTaskOpen(true)}><Plus className="w-3.5 h-3.5" />新增事项</SmallButton>} />
         <div className="flex flex-wrap gap-2 mb-4">
           <LiquidSelect value={typeFilter} onChange={setTypeFilter} variant="pill" aria-label="按事项类型筛选" options={['全部', '任务', '服务请求', '故障', '变更', '巡检'].map((value) => ({ value, label: value }))} />
-          <LiquidSelect value={statusFilter} onChange={setStatusFilter} variant="pill" aria-label="按处理状态筛选" options={['全部', '待处理', '进行中', '已完成', '已延期'].map((value) => ({ value, label: value }))} />
         </div>
-        <div className="space-y-2.5">
-          {filtered.length > 0 ? filtered.map((task) => <WorkItemRow key={task.id} task={task} onClick={() => setSelectedTask(task)} />) : <EmptyState icon={ListChecks} title="没有符合条件的事项" text="调整筛选条件，或者新增一条工作事项。" />}
-        </div>
+        <WorkflowBoard tasks={filtered} selectedId={selectedTask?.id} onSelect={setSelectedTask} />
       </Panel>
-      <Panel className="xl:sticky xl:top-0">
+      <Panel className="2xl:sticky 2xl:top-0">
         <SectionTitle icon={FileText} title="事项详情" meta={selectedTask ? selectedTask.id : '选择左侧事项'} />
         {selectedTask ? (
           <div className="space-y-4">
             <div><h3 className="text-[15px] font-bold text-white leading-6">{selectedTask.title}</h3><p className="text-[11px] text-white/45 mt-2 leading-5">{selectedTask.description || '暂无补充说明'}</p></div>
             <div className="grid grid-cols-2 gap-2 text-[10px]">
-              {[['类型', getWorkItemType(selectedTask)], ['状态', phaseLabel[selectedTask.phase]], ['项目', selectedTask.project || '待确认'], ['截止', selectedTask.deadline || '待确认'], ['负责人', selectedTask.assignee.name || '老大'], ['来源', getSource(selectedTask)]].map(([label, value]) => <div key={label} className="rounded-xl bg-white/[0.03] border border-white/[0.07] p-3"><div className="text-white/35">{label}</div><div className="text-white/80 mt-1 truncate">{value}</div></div>)}
+              {[['类型', getWorkItemType(selectedTask)], ['状态', workStageLabel[selectedTask.stage]], ['项目', selectedTask.project || '待确认'], ['截止', selectedTask.deadline || '待确认'], ['负责人', selectedTask.assignee.name || '老大'], ['来源', getSource(selectedTask)]].map(([label, value]) => <div key={label} className="rounded-xl bg-white/[0.03] border border-white/[0.07] p-3"><div className="text-white/45">{label}</div><div className="text-white/85 mt-1 truncate">{value}</div></div>)}
             </div>
+            <div className="rounded-xl bg-white/[0.025] border border-white/[0.07] p-3 text-[10px]"><div className="text-white/45">下一步</div><div className="text-white/80 mt-1">{selectedTask.nextAction}</div>{selectedTask.attentionFlags.length > 0 && <div className="flex flex-wrap gap-1.5 mt-2">{selectedTask.attentionFlags.map((flag) => <span key={flag} className="px-2 py-1 rounded-full border border-amber-400/20 bg-amber-400/10 text-amber-200">{attentionLabel[flag]}</span>)}</div>}</div>
+            <div className="text-[10px] text-white/50">关联文件：{selectedTask.fileRefs.length ? selectedTask.fileRefs.length : '无'}</div>
             <div className="flex flex-wrap gap-2">
-              {selectedTask.status !== '进行中' && selectedTask.status !== '已完成' && <SmallButton onClick={() => updateTask(selectedTask.id, { status: '进行中', phase: '产品设计' })}>开始处理</SmallButton>}
-              {selectedTask.status !== '已完成' && <SmallButton primary onClick={() => completeTask(selectedTask.id)}><CheckCircle2 className="w-3.5 h-3.5" />完成</SmallButton>}
-              <SmallButton onClick={() => deleteTask(selectedTask.id)} className="text-rose-300"><XCircle className="w-3.5 h-3.5" />删除</SmallButton>
+              {selectedTask.stage === 'RECEIVED' && <SmallButton onClick={() => moveTask(selectedTask.id, 'TRIAGED', '完成分类')}>完成分类</SmallButton>}
+              {selectedTask.stage === 'TRIAGED' && <SmallButton primary onClick={() => moveTask(selectedTask.id, 'IN_PROGRESS', '开始处理')}>开始处理</SmallButton>}
+              {selectedTask.stage === 'IN_PROGRESS' && <SmallButton primary onClick={() => completeTask(selectedTask.id)}><CheckCircle2 className="w-3.5 h-3.5" />标记干完</SmallButton>}
+              {selectedTask.stage === 'COMPLETED' && <><SmallButton onClick={() => moveTask(selectedTask.id, 'IN_PROGRESS', '验收未通过，重新处理')}>重新处理</SmallButton><SmallButton primary onClick={() => archiveTask(selectedTask.id)}><Archive className="w-3.5 h-3.5" />归档</SmallButton></>}
+              {selectedTask.stage === 'ARCHIVED' && <SmallButton onClick={() => moveTask(selectedTask.id, 'TRIAGED', '重新启用归档事项')}>重新启用</SmallButton>}
             </div>
           </div>
         ) : <EmptyState icon={FileText} title="尚未选择事项" text="从左侧选择一条事项查看完整信息。" />}
@@ -236,7 +240,7 @@ export const ProjectsPage: React.FC = () => {
         <div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">
           {workspaces.map((workspace) => {
             const items = businessTasks.filter((task) => task.project === workspace);
-            const done = items.filter((task) => task.status === '已完成').length;
+            const done = items.filter((task) => ['COMPLETED', 'ARCHIVED'].includes(task.stage)).length;
             const progress = items.length ? Math.round(done / items.length * 100) : 0;
             return <button key={workspace} onClick={() => setCurrentWorkspace(workspace)} className={clsx('text-left rounded-2xl border p-4 transition-colors', currentWorkspace === workspace ? 'bg-emerald-400/[0.08] border-emerald-400/25' : 'bg-white/[0.025] border-white/[0.08] hover:border-white/15')}>
               <div className="flex items-center justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-emerald-300"><FolderKanban className="w-4 h-4" /></span><span className="text-[10px] text-white/40">{items.length} 项事项</span></div>
@@ -272,7 +276,7 @@ const AssetModal: React.FC<{ open: boolean; onClose: () => void; onCreate: (file
 };
 
 export const AssetsPage: React.FC = () => {
-  const { files, addFile, deleteFile } = useApp();
+  const { files, addFile } = useApp();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const needle = query.trim().toLowerCase();
@@ -281,7 +285,7 @@ export const AssetsPage: React.FC = () => {
     <SectionTitle icon={HardDrive} title="设备资产" meta="网络、终端、服务器、系统和其他信息化资产" action={<SmallButton primary onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5" />登记资产</SmallButton>} />
     <div className="liquid-pill h-10 px-3.5 flex items-center gap-2 mb-4 max-w-md"><Search className="w-3.5 h-3.5 text-white/35" /><input aria-label="搜索设备资产" value={query} onChange={(e) => setQuery(e.target.value)} className="bg-transparent outline-none border-0 flex-1 text-[12px]" placeholder="搜索名称、类型、编号、IP 或位置" /></div>
     {assets.length === 0 ? <EmptyState icon={Server} title="还没有设备资产" text="先登记真实设备。后续可以接入专业资产发现工具，但拾光本身不重复制造一套网络扫描引擎。" action={<SmallButton primary onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5" />登记第一台设备</SmallButton>} /> : <div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">{assets.map((asset) => <article key={asset.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
-      <div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-cyan-300"><Network className="w-4 h-4" /></span><button aria-label={`删除资产 ${asset.title}`} onClick={() => deleteFile(asset.id)} className="text-white/30 hover:text-rose-300"><XCircle className="w-4 h-4" /></button></div>
+      <div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-cyan-300"><Network className="w-4 h-4" /></span><span className="text-[9px] text-white/45 border border-white/10 rounded-full px-2 py-1">受管条目</span></div>
       <h3 className="text-[13px] font-semibold text-white mt-3">{asset.title}</h3><p className="text-[10px] text-white/40 mt-1">{asset.size}</p>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 mt-4 text-[10px]">{[['编号', fileTagValue(asset.tags, '编号')], ['IP', fileTagValue(asset.tags, 'IP')], ['位置', fileTagValue(asset.tags, '位置')], ['状态', fileTagValue(asset.tags, '状态')]].map(([k,v]) => <div key={k}><dt className="text-white/30">{k}</dt><dd className="text-white/75 mt-0.5 truncate">{v}</dd></div>)}</dl>
     </article>)}</div>}
@@ -290,37 +294,37 @@ export const AssetsPage: React.FC = () => {
 };
 
 export const KnowledgePage: React.FC = () => {
-  const { files, addFile, deleteFile } = useApp();
+  const { files, addFile } = useApp();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: '', category: '工作资料', tags: '' });
   const knowledge = files.filter((file) => file.category !== '设备资产');
   const submit = (event: React.FormEvent) => { event.preventDefault(); if (!form.title.trim()) return; addFile({ title: form.title, category: form.category, size: '本地条目', tags: form.tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) }); setForm({ title: '', category: '工作资料', tags: '' }); setOpen(false); };
   return <div className="p-1 pb-5"><Panel>
     <SectionTitle icon={BookOpen} title="资料与知识" meta="工作资料、操作手册、故障知识和制度流程" action={<SmallButton primary onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5" />新增条目</SmallButton>} />
-    {knowledge.length === 0 ? <EmptyState icon={BookOpen} title="还没有知识条目" text="当前版本先建立可检索的元数据条目。真实文件读取与附件同步尚未启用，不再使用假上传按钮。" action={<SmallButton primary onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5" />新增第一条</SmallButton>} /> : <div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">{knowledge.map((file) => <article key={file.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-emerald-300"><FileText className="w-4 h-4" /></span><button aria-label={`删除条目 ${file.title}`} onClick={() => deleteFile(file.id)} className="text-white/30 hover:text-rose-300"><XCircle className="w-4 h-4" /></button></div><h3 className="text-[13px] font-semibold text-white mt-3">{file.title}</h3><p className="text-[10px] text-white/40 mt-1">{file.category}　{file.updatedAt}</p><div className="flex flex-wrap gap-1.5 mt-3">{file.tags.length ? file.tags.map((tag) => <span key={tag} className="px-2 py-1 rounded-lg bg-white/[0.04] border border-white/[0.07] text-[9px] text-white/50">{tag}</span>) : <span className="text-[10px] text-white/30">暂无标签</span>}</div></article>)}</div>}
+    {knowledge.length === 0 ? <EmptyState icon={BookOpen} title="还没有知识条目" text="当前版本先建立可检索的元数据条目。真实文件由 NodeGateway 按需物化，不建立独立缓存。" action={<SmallButton primary onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5" />新增第一条</SmallButton>} /> : <div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">{knowledge.map((file) => <article key={file.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-emerald-300"><FileText className="w-4 h-4" /></span><span className="text-[9px] text-white/45 border border-white/10 rounded-full px-2 py-1">元数据</span></div><h3 className="text-[13px] font-semibold text-white mt-3">{file.title}</h3><p className="text-[10px] text-white/50 mt-1">{file.category}　{file.updatedAt}</p><div className="flex flex-wrap gap-1.5 mt-3">{file.tags.length ? file.tags.map((tag) => <span key={tag} className="px-2 py-1 rounded-lg bg-white/[0.04] border border-white/[0.07] text-[9px] text-white/55">{tag}</span>) : <span className="text-[10px] text-white/45">暂无标签</span>}</div></article>)}</div>}
     <LiquidModal open={open} onClose={() => setOpen(false)} title="新增知识条目" subtitle="只记录真实存在的资料" icon={<BookOpen className="w-5 h-5" />} footer={<div className="flex justify-end gap-2"><SmallButton onClick={() => setOpen(false)}>取消</SmallButton><SmallButton primary type="submit" form="knowledge-form">保存</SmallButton></div>}><form id="knowledge-form" onSubmit={submit} className="space-y-3"><label className="text-[11px] text-white/50 block">标题<input autoFocus required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="liquid-input w-full mt-1.5 rounded-xl px-3.5 py-2.5 text-[12px]" /></label><label className="text-[11px] text-white/50 block">分类<LiquidSelect value={form.category} onChange={(category) => setForm({ ...form, category })} className="mt-1.5" options={['工作资料', '操作手册', '故障知识', '项目资料', '制度流程'].map((value) => ({ value, label: value }))} /></label><label className="text-[11px] text-white/50 block">标签<input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} className="liquid-input w-full mt-1.5 rounded-xl px-3.5 py-2.5 text-[12px]" placeholder="用逗号分隔" /></label></form></LiquidModal>
   </Panel></div>;
 };
 
 export const ReportsPage: React.FC = () => {
   const { businessTasks, files, workspaces } = useApp();
-  const done = businessTasks.filter((task) => task.status === '已完成').length;
+  const done = businessTasks.filter((task) => ['COMPLETED', 'ARCHIVED'].includes(task.stage)).length;
   const incidents = businessTasks.filter((task) => getWorkItemType(task) === '故障');
-  const openIncidents = incidents.filter((task) => task.status !== '已完成').length;
+  const openIncidents = incidents.filter((task) => !['COMPLETED', 'ARCHIVED'].includes(task.stage)).length;
   const changes = businessTasks.filter((task) => getWorkItemType(task) === '变更');
-  const completedChanges = changes.filter((task) => task.status === '已完成').length;
+  const completedChanges = changes.filter((task) => ['COMPLETED', 'ARCHIVED'].includes(task.stage)).length;
   const completion = businessTasks.length ? Math.round(done / businessTasks.length * 100) : 0;
   return <div className="p-1 pb-5 space-y-4">
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3"><StatCard label="事项完成率" value={completion} hint="百分比，来自真实事项" icon={CheckCircle2} /><StatCard label="未关闭故障" value={openIncidents} hint={`共登记 ${incidents.length} 条故障`} icon={AlertTriangle} tone="text-rose-300" /><StatCard label="已完成变更" value={completedChanges} hint={`共登记 ${changes.length} 条变更`} icon={Wrench} tone="text-cyan-300" /><StatCard label="资料与资产" value={files.length} hint={`${workspaces.length} 个信息化项目`} icon={Archive} /></div>
-    <Panel><SectionTitle icon={Gauge} title="统计说明" meta="不使用演示数字和无来源 AI 指标" /><div className="grid md:grid-cols-3 gap-3 text-[11px]">{[['数据来源', '当前拾光本地状态'], ['统计口径', '业务事项，不含系统占位记录'], ['尚未具备', 'SLA、平均响应时间、资产覆盖率等需真实字段后启用']].map(([title, text]) => <div key={title} className="rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4"><div className="text-emerald-300 font-semibold">{title}</div><p className="text-white/50 mt-2 leading-5">{text}</p></div>)}</div></Panel>
+    <Panel><SectionTitle icon={Gauge} title="统计说明" meta="不使用演示数字和无来源 AI 指标" /><div className="grid md:grid-cols-3 gap-3 text-[11px]">{[['数据来源', 'NodeGateway 当前工作状态投影'], ['统计口径', '五阶段业务事项与逻辑文件引用'], ['尚未具备', 'SLA、平均响应时间、资产覆盖率等需真实字段后启用']].map(([title, text]) => <div key={title} className="rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4"><div className="text-emerald-300 font-semibold">{title}</div><p className="text-white/55 mt-2 leading-5">{text}</p></div>)}</div></Panel>
   </div>;
 };
 
 export const SettingsPage: React.FC = () => {
-  const { accentColor, setAccentColor, glassBlur, setGlassBlur, enableConfetti, setEnableConfetti, businessTasks, files, workspaces } = useApp();
+  const { accentColor, setAccentColor, glassBlur, setGlassBlur, enableConfetti, setEnableConfetti, businessTasks, files, workspaces, legacyLocalStatePresent } = useApp();
   const sync = useShiguangSync();
   return <div className="p-1 pb-5 grid xl:grid-cols-2 gap-4 items-start">
-    <Panel><SectionTitle icon={Settings2} title="界面与体验" meta="只保留当前真实生效的设置" /><div className="space-y-4"><div><label className="text-[11px] text-white/50 block mb-2">强调色</label><div className="flex gap-2">{(['emerald', 'cyan', 'purple'] as const).map((color) => <button key={color} aria-label={`选择 ${color} 强调色`} onClick={() => setAccentColor(color)} className={clsx('w-10 h-10 rounded-xl border transition-transform', color === 'emerald' ? 'bg-emerald-400' : color === 'cyan' ? 'bg-cyan-400' : 'bg-violet-400', accentColor === color ? 'border-white scale-105' : 'border-white/10 opacity-45')} />)}</div></div><div><label className="text-[11px] text-white/50 block mb-2">玻璃模糊</label><LiquidSelect value={glassBlur} onChange={(value) => setGlassBlur(value as typeof glassBlur)} options={[{ value: 'standard', label: '标准' }, { value: 'ultra', label: '增强' }, { value: 'max', label: '最高' }]} /></div><label className="flex items-center justify-between gap-3 rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4"><span><span className="text-[12px] text-white/85 block">完成动效</span><span className="text-[10px] text-white/40 mt-1 block">完成事项时播放轻量庆祝效果</span></span><input type="checkbox" checked={enableConfetti} onChange={(e) => setEnableConfetti(e.target.checked)} className="accent-emerald-400 w-4 h-4" /></label></div></Panel>
-    <Panel><SectionTitle icon={Database} title="本地与同步" meta="本地保存默认启用，远端提交保持人工触发" /><div className="space-y-3 text-[11px]"><div className="rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4 space-y-3"><div className="flex justify-between"><span className="text-white/45">本地持久化</span><span className="text-emerald-300">已启用</span></div><div className="flex justify-between"><span className="text-white/45">NodeGateway</span><span className={sync.connected ? 'text-emerald-300' : 'text-amber-300'}>{sync.connected ? '已连接' : '未连接'}</span></div><div className="flex justify-between"><span className="text-white/45">同步阶段</span><span className="text-white/75">{sync.phase}</span></div><div className="flex justify-between"><span className="text-white/45">本地变更</span><span className="text-white/75">{sync.dirty ? '有' : '无'}</span></div></div><div className="grid grid-cols-3 gap-2">{[['事项', businessTasks.length], ['项目', workspaces.length], ['条目', files.length]].map(([label, value]) => <div key={String(label)} className="rounded-xl bg-white/[0.03] border border-white/[0.07] p-3 text-center"><div className="text-[18px] font-bold font-mono">{value}</div><div className="text-[9px] text-white/35 mt-1">{label}</div></div>)}</div><div className="flex flex-wrap gap-2"><SmallButton onClick={() => void sync.refresh()} disabled={sync.busy}>刷新状态</SmallButton><SmallButton onClick={() => void sync.pullNow()} disabled={!sync.connected || sync.busy}>拉取已验证版本</SmallButton><SmallButton primary onClick={() => void sync.submitNow()} disabled={!sync.connected || sync.busy || !sync.dirty}>提交当前版本</SmallButton></div><p className="text-[10px] text-white/35 leading-5">拾光不直连 COS。未连接时仍可本地工作，提交按钮不会伪造成功结果。</p></div></Panel>
+    <Panel><SectionTitle icon={Settings2} title="界面与体验" meta="只保存 UI 偏好，不保存业务正文" /><div className="space-y-4"><div><label className="text-[11px] text-white/60 block mb-2">强调色</label><div className="flex gap-2">{(['emerald', 'cyan', 'amber'] as const).map((color) => <button key={color} aria-label={`选择 ${color} 强调色`} onClick={() => setAccentColor(color)} className={clsx('w-10 h-10 rounded-xl border transition-transform', color === 'emerald' ? 'bg-emerald-400' : color === 'cyan' ? 'bg-cyan-400' : 'bg-amber-400', accentColor === color ? 'border-white scale-105' : 'border-white/10 opacity-55')} />)}</div></div><div><label className="text-[11px] text-white/60 block mb-2">玻璃模糊</label><LiquidSelect aria-label="玻璃模糊" value={glassBlur} onChange={(value) => setGlassBlur(value as typeof glassBlur)} options={[{ value: 'standard', label: '标准' }, { value: 'ultra', label: '增强' }, { value: 'max', label: '最高' }]} /></div><button type="button" role="switch" aria-checked={enableConfetti} onClick={() => setEnableConfetti(!enableConfetti)} className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4"><span className="text-left"><span className="text-[12px] text-white/85 block">完成动效</span><span className="text-[10px] text-white/50 mt-1 block">完成事项时播放轻量庆祝效果</span></span><span className={clsx('w-10 h-6 rounded-full border p-0.5 transition-colors', enableConfetti ? 'bg-[var(--accent-main)] border-white/30' : 'bg-white/[0.05] border-white/15')}><span className={clsx('block w-4 h-4 rounded-full bg-white transition-transform', enableConfetti && 'translate-x-4')} /></span></button></div></Panel>
+    <Panel><SectionTitle icon={Database} title="COS 与同步" meta="COS 是正式存储，本地仅保留受管工作集" /><div className="space-y-3 text-[11px]"><div className="rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4 space-y-3"><div className="flex justify-between"><span className="text-white/55">业务持久化</span><span className="text-emerald-300">COS 不可变版本</span></div><div className="flex justify-between"><span className="text-white/55">业务缓存</span><span className="text-emerald-300">仅 NodeGateway</span></div><div className="flex justify-between"><span className="text-white/55">旧本地状态</span><span className={legacyLocalStatePresent ? 'text-amber-300' : 'text-emerald-300'}>{legacyLocalStatePresent ? '待迁移' : '无'}</span></div><div className="flex justify-between"><span className="text-white/55">NodeGateway</span><span className={sync.connected ? 'text-emerald-300' : 'text-amber-300'}>{sync.connected ? '已连接' : '未连接'}</span></div><div className="flex justify-between"><span className="text-white/55">同步阶段</span><span className="text-white/80">{sync.phase}</span></div><div className="flex justify-between"><span className="text-white/55">待提交变更</span><span className="text-white/80">{sync.dirty ? '有' : '无'}</span></div></div><div className="grid grid-cols-3 gap-2">{[['事项', businessTasks.length], ['项目', workspaces.length], ['文件索引', files.length]].map(([label, value]) => <div key={String(label)} className="rounded-xl bg-white/[0.03] border border-white/[0.07] p-3 text-center"><div className="text-[18px] font-bold font-mono">{value}</div><div className="text-[9px] text-white/50 mt-1">{label}</div></div>)}</div><div className="flex flex-wrap gap-2"><SmallButton onClick={() => void sync.refresh()} disabled={sync.busy}>刷新状态</SmallButton><SmallButton onClick={() => void sync.pullNow()} disabled={!sync.connected || sync.busy}>拉取已验证版本</SmallButton><SmallButton primary onClick={() => void sync.submitNow()} disabled={!sync.connected || sync.busy || !sync.dirty}>提交当前版本</SmallButton></div><p className="text-[10px] text-white/50 leading-5">拾光不直连 COS，也不建立独立业务缓存。断网时只保留当前会话、未同步工作副本和用户固定的离线文件。</p></div></Panel>
   </div>;
 };
