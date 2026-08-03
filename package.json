@@ -1,8 +1,8 @@
 {
   "name": "shiguang",
   "private": true,
-  "version": "2.0.3",
-  "description": "拾光 · 个人生产管理",
+  "version": "2.1.0",
+  "description": "拾光 · 网络与信息化个人工作台",
   "author": "拾光",
   "type": "module",
   "main": "electron/main.cjs",

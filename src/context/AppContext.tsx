@@ -1,29 +1,29 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { TaskItem, FileDoc, CardDeckItem } from '@/types';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { FileDoc, TaskItem } from '@/types';
 import confetti from 'canvas-confetti';
 import { parseShiguangState, SHIGUANG_STATE_SCHEMA, type ShiguangState } from '@/lib/shiguangState';
+import { SYSTEM_TASK, isSystemTask } from '@/lib/workbench';
+
+const STORAGE_KEY = 'shiguang.local.state.v1';
+const DEFAULT_WORKSPACE = '个人工作台';
 
 interface AppContextType {
-  // Tasks state
   tasks: TaskItem[];
+  businessTasks: TaskItem[];
   selectedTask: TaskItem | null;
   setSelectedTask: (task: TaskItem | null) => void;
   addTask: (task: Partial<TaskItem>) => void;
   updateTask: (taskId: string, updates: Partial<TaskItem>) => void;
   completeTask: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
-
-  // Workspace
   currentWorkspace: string;
   setCurrentWorkspace: (ws: string) => void;
   workspaces: string[];
   addWorkspace: (name: string) => void;
-
-  // Documents
   files: FileDoc[];
   addFile: (file: Partial<FileDoc>) => void;
-
-  // Settings / Theme
+  updateFile: (fileId: string, updates: Partial<FileDoc>) => void;
+  deleteFile: (fileId: string) => void;
   accentColor: 'emerald' | 'cyan' | 'purple';
   setAccentColor: (color: 'emerald' | 'cyan' | 'purple') => void;
   glassBlur: 'standard' | 'ultra' | 'max';
@@ -32,33 +32,44 @@ interface AppContextType {
   setEnableConfetti: (val: boolean) => void;
   exportShiguangState: () => ShiguangState;
   importShiguangState: (value: unknown) => void;
-
-  // Modals state
   isNewTaskOpen: boolean;
   setIsNewTaskOpen: (val: boolean) => void;
-  editingTask: TaskItem | null;
-  setEditingTask: (task: TaskItem | null) => void;
-  selectedDoc: CardDeckItem | null;
-  setSelectedDoc: (doc: CardDeckItem | null) => void;
 }
 
-const initialTasks: TaskItem[] = [];
+const defaultState = (): ShiguangState => ({
+  schema_version: SHIGUANG_STATE_SCHEMA,
+  tasks: [SYSTEM_TASK],
+  files: [],
+  workspaces: [DEFAULT_WORKSPACE],
+  currentWorkspace: DEFAULT_WORKSPACE,
+  settings: { accentColor: 'emerald', glassBlur: 'ultra', enableConfetti: false },
+});
 
-const initialFiles: FileDoc[] = [];
+const loadLocalState = (): ShiguangState => {
+  if (typeof window === 'undefined') return defaultState();
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw ? parseShiguangState(JSON.parse(raw)) : defaultState();
+  } catch {
+    return defaultState();
+  }
+};
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [tasks, setTasks] = useState<TaskItem[]>(initialTasks);
-  const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
-  const [files, setFiles] = useState<FileDoc[]>(initialFiles);
-  const [workspaces, setWorkspaces] = useState<string[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = useState('');
+  const initial = useMemo(loadLocalState, []);
+  const [tasks, setTasks] = useState<TaskItem[]>(initial.tasks);
+  const [selectedTask, setSelectedTask] = useState<TaskItem | null>(initial.tasks.find((task) => !isSystemTask(task)) ?? null);
+  const [files, setFiles] = useState<FileDoc[]>(initial.files);
+  const [workspaces, setWorkspaces] = useState<string[]>(initial.workspaces);
+  const [currentWorkspace, setCurrentWorkspace] = useState(initial.currentWorkspace);
+  const [accentColor, setAccentColor] = useState(initial.settings.accentColor);
+  const [glassBlur, setGlassBlur] = useState(initial.settings.glassBlur);
+  const [enableConfetti, setEnableConfetti] = useState(initial.settings.enableConfetti);
+  const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
 
-  // Themes
-  const [accentColor, setAccentColor] = useState<'emerald' | 'cyan' | 'purple'>('emerald');
-  const [glassBlur, setGlassBlur] = useState<'standard' | 'ultra' | 'max'>('ultra');
-  const [enableConfetti, setEnableConfetti] = useState(true);
+  const businessTasks = useMemo(() => tasks.filter((task) => !isSystemTask(task)), [tasks]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -67,95 +78,93 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     root.style.setProperty('--blur-liquid', glassBlur === 'standard' ? '24px' : glassBlur === 'ultra' ? '40px' : '56px');
   }, [accentColor, glassBlur]);
 
-  // Modals
-  const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
-  const [selectedDoc, setSelectedDoc] = useState<CardDeckItem | null>(null);
-
-  const addTask = (taskPartial: Partial<TaskItem>) => {
-    const newTask: TaskItem = {
-      id: taskPartial.id || `TASK-${Date.now()}`,
-      title: taskPartial.title || '新建任务',
-      priority: taskPartial.priority || '中',
-      status: taskPartial.status || '进行中',
-      time: taskPartial.time || new Date().toLocaleDateString('zh-CN'),
-      phase: taskPartial.phase || '需求评审',
-      assignee: taskPartial.assignee || { name: '', avatar: '', role: '' },
-      project: taskPartial.project || currentWorkspace,
-      deadline: taskPartial.deadline || '',
-      description: taskPartial.description || '',
-      tags: taskPartial.tags || [],
-      aiSuggestions: taskPartial.aiSuggestions || [],
-    };
-
-    setTasks((prev) => [newTask, ...prev]);
-    setSelectedTask(newTask);
-
-    if (enableConfetti) {
-      confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-    }
-  };
-
-  const updateTask = (taskId: string, updates: Partial<TaskItem>) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t))
-    );
-    if (selectedTask?.id === taskId) {
-      setSelectedTask((prev) => prev ? { ...prev, ...updates } : prev);
-    }
-  };
-
-  const completeTask = (taskId: string) => {
-    updateTask(taskId, { status: '已完成' });
-    if (enableConfetti) {
-      confetti({ particleCount: 70, spread: 70, origin: { x: 0.85, y: 0.6 } });
-    }
-  };
-
-  const deleteTask = (taskId: string) => {
-    // 状态合同要求至少保留一个可选任务，避免 selectedTask 变成悬空引用。
-    if (tasks.length <= 1) return;
-    setTasks((prev) => prev.filter((t) => t.id !== taskId));
-    if (selectedTask?.id === taskId) {
-      const remaining = tasks.filter((t) => t.id !== taskId);
-      if (remaining.length > 0) setSelectedTask(remaining[0]);
-      else setSelectedTask(null);
-    }
-  };
-
-  const addWorkspace = (name: string) => {
-    if (!name.trim()) return;
-    setWorkspaces((prev) => [...prev, name]);
-    setCurrentWorkspace(name);
-  };
-
-  const addFile = (filePartial: Partial<FileDoc>) => {
-    const newDoc: FileDoc = {
-      id: `doc-${Date.now()}`,
-      title: filePartial.title || '未命名文档',
-      category: filePartial.category || '通用文档',
-      size: filePartial.size || '0 MB',
-      author: filePartial.author || '',
-      updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      completion: 100,
-      tags: filePartial.tags || [],
-    };
-    setFiles((prev) => [newDoc, ...prev]);
-  };
-
   const exportShiguangState = useCallback((): ShiguangState => ({
     schema_version: SHIGUANG_STATE_SCHEMA,
-    tasks,
+    tasks: tasks.length > 0 ? tasks : [SYSTEM_TASK],
     files,
-    workspaces,
-    currentWorkspace,
+    workspaces: workspaces.length > 0 ? workspaces : [DEFAULT_WORKSPACE],
+    currentWorkspace: workspaces.includes(currentWorkspace) ? currentWorkspace : (workspaces[0] ?? DEFAULT_WORKSPACE),
     settings: { accentColor, glassBlur, enableConfetti },
   }), [accentColor, currentWorkspace, enableConfetti, files, glassBlur, tasks, workspaces]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(exportShiguangState()));
+    } catch {
+      // 浏览器存储不可用时仍保留当前会话，设置页会明确显示本地模式。
+    }
+  }, [exportShiguangState]);
+
+  const addTask = useCallback((taskPartial: Partial<TaskItem>) => {
+    const newTask: TaskItem = {
+      id: taskPartial.id || `TASK-${Date.now()}`,
+      title: taskPartial.title || '未命名事项',
+      priority: taskPartial.priority || '中',
+      status: taskPartial.status || '待处理',
+      time: taskPartial.time || new Date().toISOString().slice(0, 10),
+      phase: taskPartial.phase || '需求评审',
+      assignee: taskPartial.assignee || { name: '老大', avatar: 'LD', role: '负责人' },
+      project: taskPartial.project || currentWorkspace,
+      deadline: taskPartial.deadline || '待确认',
+      description: taskPartial.description || '',
+      tags: taskPartial.tags || ['类型:任务', '来源:手动录入'],
+      aiSuggestions: taskPartial.aiSuggestions || [],
+      completionProgress: taskPartial.completionProgress ?? 0,
+    };
+    setTasks((prev) => [newTask, ...prev.filter((task) => !isSystemTask(task))]);
+    setSelectedTask(newTask);
+    if (enableConfetti) confetti({ particleCount: 45, spread: 60, origin: { y: 0.65 } });
+  }, [currentWorkspace, enableConfetti]);
+
+  const updateTask = useCallback((taskId: string, updates: Partial<TaskItem>) => {
+    setTasks((prev) => prev.map((task) => task.id === taskId ? { ...task, ...updates } : task));
+    setSelectedTask((prev) => prev?.id === taskId ? { ...prev, ...updates } : prev);
+  }, []);
+
+  const completeTask = useCallback((taskId: string) => {
+    updateTask(taskId, { status: '已完成', phase: '测试验证', completionProgress: 100 });
+    if (enableConfetti) confetti({ particleCount: 60, spread: 70, origin: { x: 0.82, y: 0.62 } });
+  }, [enableConfetti, updateTask]);
+
+  const deleteTask = useCallback((taskId: string) => {
+    setTasks((prev) => {
+      const remaining = prev.filter((task) => task.id !== taskId && !isSystemTask(task));
+      return remaining.length > 0 ? remaining : [SYSTEM_TASK];
+    });
+    setSelectedTask((prev) => prev?.id === taskId ? null : prev);
+  }, []);
+
+  const addWorkspace = useCallback((name: string) => {
+    const clean = name.trim();
+    if (!clean) return;
+    setWorkspaces((prev) => prev.includes(clean) ? prev : [...prev, clean]);
+    setCurrentWorkspace(clean);
+  }, []);
+
+  const addFile = useCallback((filePartial: Partial<FileDoc>) => {
+    const next: FileDoc = {
+      id: filePartial.id || `DOC-${Date.now()}`,
+      title: filePartial.title || '未命名条目',
+      category: filePartial.category || '工作资料',
+      size: filePartial.size || '本地条目',
+      author: filePartial.author || '老大',
+      updatedAt: filePartial.updatedAt || new Date().toISOString().slice(0, 16).replace('T', ' '),
+      completion: filePartial.completion ?? 100,
+      tags: filePartial.tags || [],
+    };
+    setFiles((prev) => [next, ...prev]);
+  }, []);
+
+  const updateFile = useCallback((fileId: string, updates: Partial<FileDoc>) => {
+    setFiles((prev) => prev.map((file) => file.id === fileId ? { ...file, ...updates, updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' ') } : file));
+  }, []);
+
+  const deleteFile = useCallback((fileId: string) => setFiles((prev) => prev.filter((file) => file.id !== fileId)), []);
 
   const importShiguangState = useCallback((value: unknown) => {
     const next = parseShiguangState(value);
     setTasks(next.tasks);
-    setSelectedTask(next.tasks[0] ?? initialTasks[0]);
+    setSelectedTask(next.tasks.find((task) => !isSystemTask(task)) ?? null);
     setFiles(next.files);
     setWorkspaces(next.workspaces);
     setCurrentWorkspace(next.currentWorkspace);
@@ -165,37 +174,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   return (
-    <AppContext.Provider
-      value={{
-        tasks,
-        selectedTask,
-        setSelectedTask,
-        addTask,
-        updateTask,
-        completeTask,
-        deleteTask,
-        currentWorkspace,
-        setCurrentWorkspace,
-        workspaces,
-        addWorkspace,
-        files,
-        addFile,
-        accentColor,
-        setAccentColor,
-        glassBlur,
-        setGlassBlur,
-        enableConfetti,
-        setEnableConfetti,
-        exportShiguangState,
-        importShiguangState,
-        isNewTaskOpen,
-        setIsNewTaskOpen,
-        editingTask,
-        setEditingTask,
-        selectedDoc,
-        setSelectedDoc,
-      }}
-    >
+    <AppContext.Provider value={{
+      tasks, businessTasks, selectedTask, setSelectedTask, addTask, updateTask, completeTask, deleteTask,
+      currentWorkspace, setCurrentWorkspace, workspaces, addWorkspace,
+      files, addFile, updateFile, deleteFile,
+      accentColor, setAccentColor, glassBlur, setGlassBlur, enableConfetti, setEnableConfetti,
+      exportShiguangState, importShiguangState,
+      isNewTaskOpen, setIsNewTaskOpen,
+    }}>
       {children}
     </AppContext.Provider>
   );

@@ -38,10 +38,18 @@ export const LiquidSelect: React.FC<LiquidSelectProps> = ({
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const listId = useId();
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0, maxH: 240 });
 
   const selected = options.find((o) => o.value === value);
+
+  const focusOption = (index: number) => {
+    const enabled = options.map((option, optionIndex) => ({ option, optionIndex })).filter(({ option }) => !option.disabled);
+    if (!enabled.length) return;
+    const normalized = (index + enabled.length) % enabled.length;
+    optionRefs.current[enabled[normalized].optionIndex]?.focus();
+  };
 
   const updatePos = () => {
     const el = btnRef.current;
@@ -77,7 +85,10 @@ export const LiquidSelect: React.FC<LiquidSelectProps> = ({
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') {
+        setOpen(false);
+        btnRef.current?.focus();
+      }
     };
     window.addEventListener('resize', onWin);
     window.addEventListener('scroll', onWin, true);
@@ -102,6 +113,17 @@ export const LiquidSelect: React.FC<LiquidSelectProps> = ({
         aria-controls={listId}
         aria-label={ariaLabel}
         onClick={() => !disabled && setOpen((v) => !v)}
+        onKeyDown={(event) => {
+          if (disabled) return;
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            if (!open) setOpen(true);
+            window.requestAnimationFrame(() => {
+              const selectedIndex = options.findIndex((option) => option.value === value && !option.disabled);
+              focusOption(selectedIndex >= 0 ? selectedIndex : 0);
+            });
+          }
+        }}
         className={clsx(
           'flex items-center justify-between gap-2 text-left transition-colors disabled:opacity-40',
           variant === 'pill' &&
@@ -128,6 +150,18 @@ export const LiquidSelect: React.FC<LiquidSelectProps> = ({
                 ref={panelRef}
                 id={listId}
                 role="listbox"
+                tabIndex={-1}
+                onKeyDown={(event) => {
+                  const enabledButtons = optionRefs.current.filter((button): button is HTMLButtonElement => Boolean(button && !button.disabled));
+                  const index = enabledButtons.indexOf(document.activeElement as HTMLButtonElement);
+                  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    const next = event.key === 'ArrowDown' ? index + 1 : index - 1;
+                    enabledButtons[(next + enabledButtons.length) % enabledButtons.length]?.focus();
+                  }
+                  if (event.key === 'Home') { event.preventDefault(); enabledButtons[0]?.focus(); }
+                  if (event.key === 'End') { event.preventDefault(); enabledButtons[enabledButtons.length - 1]?.focus(); }
+                }}
                 initial={{ opacity: 0, y: openUp ? 8 : -8, scale: 0.96, filter: 'blur(6px)' }}
                 animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
                 exit={{ opacity: 0, y: openUp ? 6 : -6, scale: 0.97, filter: 'blur(4px)' }}
@@ -148,6 +182,7 @@ export const LiquidSelect: React.FC<LiquidSelectProps> = ({
                   return (
                     <button
                       key={opt.value}
+                      ref={(element) => { optionRefs.current[options.indexOf(opt)] = element; }}
                       type="button"
                       role="option"
                       aria-selected={active}
@@ -156,6 +191,7 @@ export const LiquidSelect: React.FC<LiquidSelectProps> = ({
                         if (opt.disabled) return;
                         onChange(opt.value);
                         setOpen(false);
+                        btnRef.current?.focus();
                       }}
                       className={clsx(
                         'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12px] transition-colors text-left',

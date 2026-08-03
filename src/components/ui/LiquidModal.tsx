@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -26,14 +26,44 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
   widthClass = 'max-w-lg',
   className,
 }) => {
-  // ESC 关闭
+  const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const focusable = () => Array.from(panelRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+    ) ?? []);
+    window.requestAnimationFrame(() => {
+      const preferred = panelRef.current?.querySelector<HTMLElement>('[autofocus]');
+      (preferred ?? focusable()[0] ?? panelRef.current)?.focus();
+    });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
+      if (e.key === 'Tab') {
+        const items = focusable();
+        if (!items.length) {
+          e.preventDefault();
+          panelRef.current?.focus();
+          return;
+        }
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      previousFocus?.focus();
+    };
   }, [open, onClose]);
 
   return (
@@ -59,8 +89,11 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
 
           {/* 面板：缩放 + 上浮 + 模糊清除 */}
           <motion.div
+            ref={panelRef}
             role="dialog"
             aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
             initial={{ opacity: 0, y: 36, scale: 0.92, filter: 'blur(12px)' }}
             animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
             exit={{ opacity: 0, y: 20, scale: 0.96, filter: 'blur(8px)' }}
@@ -100,7 +133,7 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.08, duration: 0.28 }}
                   >
-                    <h3 className="text-[17px] font-bold tracking-tight text-white truncate">{title}</h3>
+                    <h3 id={titleId} className="text-[17px] font-bold tracking-tight text-white truncate">{title}</h3>
                     {subtitle && <div className="text-[11px] text-white/40 mt-0.5">{subtitle}</div>}
                   </motion.div>
                 </div>
@@ -108,6 +141,7 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
                   whileHover={{ scale: 1.08, rotate: 90 }}
                   whileTap={{ scale: 0.92 }}
                   onClick={onClose}
+                  aria-label={`关闭${title}`}
                   className="liquid-btn-ghost w-9 h-9 rounded-full flex items-center justify-center text-white/45 hover:text-white shrink-0"
                 >
                   <X className="w-4 h-4" />

@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { Plus, CheckCircle2, Sparkles } from 'lucide-react';
-import { Priority, TaskItem } from '@/types';
-import confetti from 'canvas-confetti';
+import React, { useEffect, useState } from 'react';
+import { CheckCircle2, Plus } from 'lucide-react';
+import { motion } from 'framer-motion';
+import type { Priority, TaskItem, WorkItemType } from '@/types';
 import { LiquidModal } from '@/components/ui/LiquidModal';
 import { LiquidSelect } from '@/components/ui/LiquidSelect';
-import { motion } from 'framer-motion';
+import { useApp } from '@/context/AppContext';
 
 interface NewTaskModalProps {
   isOpen: boolean;
@@ -13,37 +13,56 @@ interface NewTaskModalProps {
 }
 
 export const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, onAddTask }) => {
+  const { currentWorkspace, workspaces } = useApp();
   const [title, setTitle] = useState('');
-  const [phase, setPhase] = useState<'需求评审' | '产品设计' | '开发实现' | '测试验证'>('需求评审');
-  const [priority, setPriority] = useState<Priority>('高');
+  const [type, setType] = useState<WorkItemType>('任务');
+  const [priority, setPriority] = useState<Priority>('中');
+  const [project, setProject] = useState(currentWorkspace);
   const [deadline, setDeadline] = useState('');
-  const [assignee, setAssignee] = useState('');
+  const [assignee, setAssignee] = useState('老大');
   const [description, setDescription] = useState('');
   const [tagsInput, setTagsInput] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
+  useEffect(() => {
+    if (isOpen) setProject(currentWorkspace);
+  }, [currentWorkspace, isOpen]);
 
-    onAddTask({
-      id: `TASK-${Date.now()}`,
-      title,
-      phase,
-      priority,
-      status: '进行中',
-      time: new Date().toLocaleDateString('zh-CN'),
-      assignee: { name: assignee, avatar: assignee.slice(0, 2).toUpperCase() || '?', role: '' },
-      project: '',
-      deadline,
-      description: description || '',
-      tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
-      aiSuggestions: [],
-    });
-
-    confetti({ particleCount: 55, spread: 62, origin: { y: 0.62 }, colors: ['#34d399', '#6ee7b7', '#a7f3d0', '#ffffff'] });
+  const reset = () => {
     setTitle('');
+    setType('任务');
+    setPriority('中');
+    setProject(currentWorkspace);
+    setDeadline('');
+    setAssignee('老大');
     setDescription('');
+    setTagsInput('');
+  };
+
+  const close = () => {
+    reset();
     onClose();
+  };
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!title.trim()) return;
+    const manualTags = tagsInput.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean);
+    onAddTask({
+      id: `WORK-${Date.now()}`,
+      title: title.trim(),
+      phase: '需求评审',
+      priority,
+      status: '待处理',
+      time: new Date().toISOString().slice(0, 10),
+      assignee: { name: assignee.trim() || '老大', avatar: (assignee.trim() || '老大').slice(0, 2), role: '负责人' },
+      project,
+      deadline: deadline || '待确认',
+      description: description.trim(),
+      tags: [`类型:${type}`, '来源:手动录入', ...manualTags],
+      aiSuggestions: [],
+      completionProgress: 0,
+    });
+    close();
   };
 
   const field = 'liquid-input w-full px-3.5 py-2.5 rounded-xl text-[12px] text-white placeholder:text-white/30';
@@ -51,86 +70,60 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, onA
   return (
     <LiquidModal
       open={isOpen}
-      onClose={onClose}
-      title="新增任务"
-      subtitle="高效规划 · 智能协同 · 结果驱动"
+      onClose={close}
+      title="新增工作事项"
+      subtitle="任务、服务请求、故障、变更和巡检统一登记"
       icon={<Plus className="w-5 h-5" />}
       footer={
         <div className="flex items-center justify-end gap-2">
-          <motion.button whileTap={{ scale: 0.96 }} type="button" onClick={onClose} className="h-10 px-4 rounded-full liquid-btn-ghost text-[12px] text-white/60">
-            取消
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.96 }}
-            type="submit"
-            form="new-task-form"
-            className="h-10 px-5 rounded-full liquid-btn-primary text-[12px] font-bold flex items-center gap-1.5"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            立即创建
+          <motion.button whileTap={{ scale: 0.96 }} type="button" onClick={close} className="h-10 px-4 rounded-full liquid-btn-ghost text-[12px] text-white/60">取消</motion.button>
+          <motion.button whileTap={{ scale: 0.96 }} type="submit" form="new-work-form" className="h-10 px-5 rounded-full liquid-btn-primary text-[12px] font-bold flex items-center gap-1.5">
+            <CheckCircle2 className="w-4 h-4" />保存事项
           </motion.button>
         </div>
       }
     >
-      <form id="new-task-form" onSubmit={handleSubmit} className="space-y-3.5">
+      <form id="new-work-form" onSubmit={handleSubmit} className="space-y-3.5">
         <div>
-          <label className="block text-[11px] text-white/40 mb-1.5">任务名称 <span className="text-emerald-300">*</span></label>
-          <input className={field} required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="请输入任务标题..." />
+          <label htmlFor="work-title" className="block text-[11px] text-white/45 mb-1.5">事项名称 <span className="text-emerald-300">*</span></label>
+          <input id="work-title" autoFocus className={field} required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：处理办公楼核心交换机告警" />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] text-white/40 mb-1.5">所属阶段</label>
-            <LiquidSelect
-              value={phase}
-              onChange={(v) => setPhase(v as typeof phase)}
-              options={[
-                { value: '需求评审', label: '需求评审' },
-                { value: '产品设计', label: '产品设计' },
-                { value: '开发实现', label: '开发实现' },
-                { value: '测试验证', label: '测试验证' },
-              ]}
-            />
+            <label className="block text-[11px] text-white/45 mb-1.5">事项类型</label>
+            <LiquidSelect aria-label="事项类型" value={type} onChange={(value) => setType(value as WorkItemType)} options={['任务', '服务请求', '故障', '变更', '巡检'].map((value) => ({ value, label: value }))} />
           </div>
           <div>
-            <label className="block text-[11px] text-white/40 mb-1.5">优先级</label>
-            <LiquidSelect
-              value={priority}
-              onChange={(v) => setPriority(v as Priority)}
-              options={[
-                { value: '高', label: '高' },
-                { value: '中', label: '中' },
-                { value: '低', label: '低' },
-              ]}
-            />
+            <label className="block text-[11px] text-white/45 mb-1.5">优先级</label>
+            <LiquidSelect aria-label="优先级" value={priority} onChange={(value) => setPriority(value as Priority)} options={['紧急', '高', '中', '低'].map((value) => ({ value, label: value }))} />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] text-white/40 mb-1.5">负责人</label>
-            <input className={field} value={assignee} onChange={(e) => setAssignee(e.target.value)} />
+            <label className="block text-[11px] text-white/45 mb-1.5">所属项目</label>
+            <LiquidSelect aria-label="所属项目" value={project} onChange={setProject} options={workspaces.map((value) => ({ value, label: value }))} />
           </div>
           <div>
-            <label className="block text-[11px] text-white/40 mb-1.5">截止时间</label>
-            <input className={field} value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+            <label htmlFor="work-deadline" className="block text-[11px] text-white/45 mb-1.5">截止日期</label>
+            <input id="work-deadline" type="date" className={field} value={deadline} onChange={(event) => setDeadline(event.target.value)} />
           </div>
         </div>
 
         <div>
-          <label className="block text-[11px] text-white/40 mb-1.5">任务描述</label>
-          <textarea className={`${field} resize-none`} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="输入更详细的需求说明..." />
+          <label htmlFor="work-assignee" className="block text-[11px] text-white/45 mb-1.5">负责人</label>
+          <input id="work-assignee" className={field} value={assignee} onChange={(event) => setAssignee(event.target.value)} />
         </div>
 
         <div>
-          <label className="block text-[11px] text-white/40 mb-1.5">标签（逗号分隔）</label>
-          <input className={field} value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} />
+          <label htmlFor="work-description" className="block text-[11px] text-white/45 mb-1.5">说明</label>
+          <textarea id="work-description" className={`${field} resize-none`} rows={3} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="记录影响范围、处理目标或验收条件" />
         </div>
 
-        <div className="p-3 rounded-2xl bg-emerald-400/[0.06] border border-emerald-400/20 text-[11px] text-emerald-100/80 flex items-start gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-emerald-300 mt-0.5 shrink-0" />
-          <span>AI 助手将在任务创建后自动分配协同资源与智能风险预警。</span>
+        <div>
+          <label htmlFor="work-tags" className="block text-[11px] text-white/45 mb-1.5">标签</label>
+          <input id="work-tags" className={field} value={tagsInput} onChange={(event) => setTagsInput(event.target.value)} placeholder="厂区、系统或部门，使用逗号分隔" />
         </div>
       </form>
     </LiquidModal>
