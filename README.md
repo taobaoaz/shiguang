@@ -94,7 +94,7 @@ React renderer → preload 固定 IPC → Electron main → 127.0.0.1 NodeGatewa
 
 生产启动不接收环境变量 token。Electron 主进程通过固定绝对路径调用 `codex-ops` 的 `client-token-stdio` DPAPI helper，以带长度前缀的 JCS JSON 管道协议把 token 仅加载到主进程内存；helper 的超时、帧长、字段、nonce 或 token 校验失败都会阻断启动。环境变量 token 只允许 `--dev` 本地测试，真实 token 不得写入仓库、renderer、日志或截图。拾光使用独立身份 `home-pc-01/shiguang/main`；`agent_boot_id` 由主进程每次启动生成，不从环境注入。主进程会先完整获取全局 README，核对 UTF-8 字节数与 SHA-256，并提交绑定本次启动的读取回执；只有门禁成功后才附带 `X-Agent-Boot-Id` 调用业务接口。
 
-拾光应用状态固定为 `paw.shiguang.state.v1`，逻辑文件 ID 为 `shiguang-state`，数据级别为 L2。启动时只拉取：无远端 head 时保留本地状态；唯一 head 时校验内容摘要后导入；多 head 或 deletion-proposed 时显示冲突且不覆盖。设置中心提供“从 PAW 拉取”和“提交当前版本”两个明确操作；提交只创建 `CREATE` 或基于唯一 head 的 `MODIFY` 不可变版本，不执行 Last-Writer-Wins、覆盖写或硬删除。删除能力只生成待审提案。
+拾光应用状态固定为 `paw.shiguang.state.v1`，逻辑文件 ID 为 `shiguang-state`，数据级别为 L2。全局同步控制器在应用启动时自动连接并只读拉取，连接、冲突和本地变更状态由所有页面共享：无远端 head 时保留本地状态；唯一 head 时校验内容摘要后导入；多 head 或 deletion-proposed 时显示冲突且阻断提交。设置中心仅提供人工重连和“提交当前版本”操作；本地变化只标记待提交，绝不自动上传或自动重放写请求。提交只创建 `CREATE` 或基于唯一 head 的 `MODIFY` 不可变版本，不执行 Last-Writer-Wins、覆盖写或硬删除。删除能力只生成待审提案。
 
 验证：
 

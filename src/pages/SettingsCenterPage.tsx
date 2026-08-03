@@ -28,6 +28,7 @@ import { ViewTransition } from '@/components/ui/PageTransition';
 import { LiquidSelect } from '@/components/ui/LiquidSelect';
 import { UpdateCheckResult } from '@/types';
 import { pushReceiptPresentation, verifiedPullPresentation } from '@/lib/syncOutcome';
+import { useShiguangSync } from '@/context/ShiguangSyncContext';
 
 type SettingsTab = 'appearance' | 'ai' | 'notify' | 'account' | 'privacy' | 'system';
 
@@ -84,9 +85,8 @@ export const SettingsCenterPage: React.FC = () => {
     setAccentColor,
     enableConfetti,
     setEnableConfetti,
-    exportShiguangState,
-    importShiguangState,
   } = useApp();
+  const sync = useShiguangSync();
   const { show, ToastEl } = useToast();
   const [tab, setTab] = useState<SettingsTab>('appearance');
 
@@ -130,49 +130,37 @@ export const SettingsCenterPage: React.FC = () => {
   // system
   const [autoSave, setAutoSave] = useState(true);
   const [cacheSize] = useState('128 MB');
-  const [lastSync, setLastSync] = useState('尚未完成云端校验');
-  const [syncing, setSyncing] = useState(false);
-
   const pullFromPaw = async () => {
-    if (syncing) return;
-    setSyncing(true);
+    if (sync.busy) return;
     try {
-      const gateway = window.shiguangGateway;
-      if (!gateway) throw new Error('NODEGATEWAY_IPC_UNAVAILABLE');
-      const result = await gateway.pullState();
-      if (!result.ok) throw new Error(result.error.code);
-      if (result.value.status === 'conflict') throw new Error('SHIGUANG_STATE_CONFLICT');
-      if (result.value.status === 'local-only') {
-        setLastSync('云端暂无版本');
+      const result = await sync.pullNow();
+      if (result.phase === 'conflict') throw new Error('SHIGUANG_STATE_CONFLICT');
+      if (!result.connected) throw new Error(result.code);
+      if (!result.lastPulledAt) {
         show('PAW 尚无拾光状态，已保留本地数据');
         return;
       }
-      importShiguangState(result.value.state);
       const presentation = verifiedPullPresentation(new Date().toLocaleString('zh-CN'));
-      setLastSync(presentation.lastStatus);
       show(presentation.toast);
     } catch (cause) {
       show(`拉取失败：${cause instanceof Error ? cause.message : 'NODEGATEWAY_UNKNOWN_ERROR'}`);
-    } finally {
-      setSyncing(false);
     }
   };
 
   const pushToPaw = async () => {
-    if (syncing) return;
-    setSyncing(true);
+    if (sync.busy) return;
     try {
-      const gateway = window.shiguangGateway;
-      if (!gateway) throw new Error('NODEGATEWAY_IPC_UNAVAILABLE');
-      const result = await gateway.pushState(exportShiguangState());
-      if (!result.ok) throw new Error(result.error.code);
-      const presentation = pushReceiptPresentation(result.value.status, result.value.version_id);
-      setLastSync(presentation.lastStatus);
+      const result = await sync.submitNow();
+      const latest = result.submitStatus;
+      const versionId = result.versionId;
+      if (!latest || !versionId) {
+        show('当前版本已提交，状态正在刷新');
+        return;
+      }
+      const presentation = pushReceiptPresentation(latest, versionId);
       show(presentation.toast);
     } catch (cause) {
       show(`提交失败：${cause instanceof Error ? cause.message : 'NODEGATEWAY_UNKNOWN_ERROR'}`);
-    } finally {
-      setSyncing(false);
     }
   };
 
@@ -568,12 +556,19 @@ export const SettingsCenterPage: React.FC = () => {
                 </GlassCard>
                 <GlassCard className="p-4 space-y-1">
                   <div className="text-[11px] text-white/40 flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5" /> 云端状态</div>
-                  <div className="text-[18px] font-bold text-white">{lastSync}</div>
+                  <div className="text-[18px] font-bold text-white">
+                    {sync.phase === 'connected' ? (sync.dirty ? '已连接 · 本地有变更' : '已连接 · 状态一致')
+                      : sync.phase === 'conflict' ? '冲突，已停止合并'
+                        : sync.phase === 'initializing' ? '正在连接 NodeGateway'
+                          : `未连接 · ${sync.code}`}
+                  </div>
+                  {sync.lastPulledAt && <div className="text-[10px] text-white/35">启动拉取：{sync.lastPulledAt}</div>}
+                  {sync.lastSubmittedAt && <div className="text-[10px] text-white/35">最近提交：{sync.lastSubmittedAt}</div>}
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <button disabled={syncing} onClick={() => void pullFromPaw()} className="text-[11px] text-emerald-300 hover:underline disabled:opacity-40">
-                      从 PAW 拉取
+                    <button disabled={sync.busy} onClick={() => void pullFromPaw()} className="text-[11px] text-emerald-300 hover:underline disabled:opacity-40">
+                      重新连接并拉取
                     </button>
-                    <button disabled={syncing} onClick={() => void pushToPaw()} className="text-[11px] text-cyan-300 hover:underline disabled:opacity-40">
+                    <button disabled={sync.busy || !sync.connected || sync.phase === 'conflict'} onClick={() => void pushToPaw()} className="text-[11px] text-cyan-300 hover:underline disabled:opacity-40">
                       提交当前版本
                     </button>
                   </div>
@@ -591,7 +586,7 @@ export const SettingsCenterPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] text-white/40">当前版本</span>
                       <span className="text-[13px] font-mono font-semibold text-white">
-                        v{updateResult?.currentVersion || '2.0.2'}
+                        v{updateResult?.currentVersion || '2.0.3'}
                       </span>
                     </div>
                     {updateResult && !updateResult.error && (

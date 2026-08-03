@@ -21,8 +21,7 @@ import { NavTab } from '@/types';
 import { clsx } from 'clsx';
 import { LiquidModal } from '@/components/ui/LiquidModal';
 import { useToast } from '@/components/ui/Toast';
-import { useProductionData } from '@/lib/useProductionData';
-import { useApp } from '@/context/AppContext';
+import { useShiguangSync } from '@/context/ShiguangSyncContext';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -51,23 +50,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, onNewW
   const [profile, setProfile] = useState({ name: '拾光', role: '个人工作台', email: '' });
 
   // ═══ PAW 工作区：仅通过 Electron IPC -> 本机 NodeGateway 获取 ═══
-  const { importShiguangState } = useApp();
-  const { status, groups, loading, error, refresh } = useProductionData(importShiguangState);
+  const { connected, phase, headCount, busy, dirty, refresh } = useShiguangSync();
 
   // 生产工作区列表：3 个群 + 1 个总览
   const workspaces = [
-    { name: '生产数据总览', icon: Activity, count: status?.totalMessages ?? null },
-    ...(loading ? [] : groups.map(g => ({
-      name: g.group === '统计' ? '📊 统计群' : g.group === '化验' ? '🔬 化验群' : '📈 指标群',
-      icon: Activity,
-      count: g.todayCount,
-      total: g.totalCount,
-    }))),
+    { name: '生产数据总览', icon: Activity, count: connected ? headCount : null },
   ];
 
   const createWorkspace = (e: React.FormEvent) => {
     e.preventDefault();
-    show(status?.connected ? 'PAW 工作区已连接' : 'NodeGateway 未连接，未执行同步');
+    show(connected ? 'PAW 工作区已连接' : 'NodeGateway 未连接，未执行同步');
     setCreateWsOpen(false);
     onNewWorkspace?.();
   };
@@ -126,12 +118,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, onNewW
         <div className="space-y-2.5 pt-3 mt-3 border-t border-white/[0.06]">
           <div className="flex items-center justify-between px-2 text-[11px] font-medium text-white/35">
             <span className="flex items-center gap-1.5">
-              <span className={clsx('w-1.5 h-1.5 rounded-full', status?.connected ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-amber-400')} />
+              <span className={clsx('w-1.5 h-1.5 rounded-full', connected ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-amber-400')} />
               PAW 工作区
-              {error === 'SHIGUANG_STATE_CONFLICT' && <span className="text-amber-300">状态冲突</span>}
+              {phase === 'conflict' && <span className="text-amber-300">状态冲突</span>}
+              {dirty && <span className="text-cyan-300">本地有变更</span>}
             </span>
             <button
-              onClick={refresh}
+              onClick={() => void refresh()}
+              disabled={busy}
               className="p-1 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-colors text-[10px]"
               title="刷新数据"
             >
