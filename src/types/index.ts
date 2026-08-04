@@ -108,6 +108,7 @@ declare global {
       isElectron: boolean;
       checkForUpdates: () => Promise<UpdateCheckResult>;
       onUpdateAvailable: (callback: (data: UpdateAvailableEvent) => void) => () => void;
+      openWorkDisk: () => Promise<{ ok: boolean; path: string; error?: string }>;
     };
   }
 }

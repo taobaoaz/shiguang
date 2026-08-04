@@ -24,6 +24,7 @@ const GITHUB_REPO = 'taobaoaz/shiguang';
 const UPDATE_TIMEOUT_MS = 5000;
 const MAX_UPDATE_RESPONSE_BYTES = 1024 * 1024;
 const RUNTIME_PARTITION = 'shiguang-runtime';
+const WORK_DISK_PATH = 'D:\\拾光工作盘';
 let gatewayClient = createNodeGatewayClient({});
 let mainWindow = null;
 
@@ -188,6 +189,12 @@ function registerIpc() {
   ipcMain.handle('check-for-updates', async (event) => {
     if (!trusted(event)) return { currentVersion: app.getVersion(), error: 'UPDATE_IPC_DENIED' };
     return checkForUpdates();
+  });
+  ipcMain.removeHandler('open-work-disk');
+  ipcMain.handle('open-work-disk', async (event) => {
+    if (!trusted(event)) return { ok: false, path: WORK_DISK_PATH, error: 'WORK_DISK_IPC_DENIED' };
+    const error = await shell.openPath(WORK_DISK_PATH);
+    return error ? { ok: false, path: WORK_DISK_PATH, error: 'WORK_DISK_OPEN_FAILED' } : { ok: true, path: WORK_DISK_PATH };
   });
 }
 

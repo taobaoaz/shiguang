@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Activity, AlertTriangle, Archive, ArrowRight, Bot, Box, CheckCircle2,
-  Building2, CircleDot, Clock3, Cloud, CloudCog, CornerDownLeft, Database, FileText,
-  FolderKanban, Gauge, HardDrive, Home, Inbox, LayoutDashboard, Link2, ListChecks,
-  MonitorSmartphone, Network, PencilLine, Plus, Search, Server, Settings2,
+  Activity, AlertTriangle, Archive, ArrowRight, Box, CheckCircle2,
+  CircleDot, Clock3, CornerDownLeft, Database, FileText,
+  FolderKanban, Gauge, HardDrive, Inbox, LayoutDashboard, Link2, ListChecks,
+  Network, PencilLine, Plus, Search, Server,
   ShieldCheck, Tag, Wrench, XCircle, Zap,
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -15,7 +15,6 @@ import { WorkflowBoard } from '@/components/workbench/WorkflowBoard';
 import { EditTaskModal } from '@/components/modals/EditTaskModal';
 import type { FileDoc, NavTab, TaskItem, WorkItemType } from '@/types';
 import { attentionLabel, countByStage, fileTagValue, getSource, getWorkItemType, isOverdue, projectCompletion, workStageLabel } from '@/lib/workbench';
-import { SHIGUANG_INTEGRATIONS } from '@/lib/integrations';
 
 type Navigate = (tab: NavTab) => void;
 
@@ -409,7 +408,6 @@ export const KnowledgePage: React.FC = () => {
     </Panel>
   </div>;
 };
-
 export const ReportsPage: React.FC = () => {
   const { businessTasks, files, workspaces } = useApp();
   const incidents = businessTasks.filter((task) => getWorkItemType(task) === '故障');
@@ -420,91 +418,5 @@ export const ReportsPage: React.FC = () => {
   return <div className="p-1 pb-5 space-y-4">
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3"><StatCard label="事项完成率" value={completion} hint="百分比，来自真实事项" icon={CheckCircle2} /><StatCard label="未关闭故障" value={openIncidents} hint={`共登记 ${incidents.length} 条故障`} icon={AlertTriangle} tone="text-rose-300" /><StatCard label="已完成变更" value={completedChanges} hint={`共登记 ${changes.length} 条变更`} icon={Wrench} tone="text-cyan-300" /><StatCard label="资料与资产" value={files.length} hint={`${workspaces.length} 个信息化项目`} icon={Archive} /></div>
     <Panel><SectionTitle icon={Gauge} title="统计说明" meta="不使用演示数字和无来源 AI 指标" /><div className="grid md:grid-cols-3 gap-3 text-[11px]">{[['数据来源', 'NodeGateway 当前工作状态投影'], ['统计口径', '五阶段业务事项与逻辑文件引用'], ['尚未具备', 'SLA、平均响应时间、资产覆盖率等需真实字段后启用']].map(([title, text]) => <div key={title} className="rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4"><div className="text-emerald-300 font-semibold">{title}</div><p className="text-white/55 mt-2 leading-5">{text}</p></div>)}</div></Panel>
-  </div>;
-};
-
-export const SettingsPage: React.FC = () => {
-  const { accentColor, setAccentColor, glassBlur, setGlassBlur, enableConfetti, setEnableConfetti, businessTasks, files, workspaces, legacyLocalStatePresent } = useApp();
-  const sync = useShiguangSync();
-  const [aiOpen, setAiOpen] = useState(false);
-  const phaseLabel = { initializing: '初始化中', connected: '已连接', offline: '未连接', conflict: '存在冲突', error: '错误' }[sync.phase];
-  const submitLabel = sync.submitStatus === 'committed' ? '已提交并确认' : sync.submitStatus === 'accepted' ? '已受理' : '暂无提交';
-  return <div className="p-1 pb-5 grid xl:grid-cols-2 gap-4 items-start">
-    <Panel>
-      <SectionTitle icon={Settings2} title="界面与体验" meta="只保存 UI 偏好，不保存业务正文" />
-      <div className="space-y-4">
-        <div><label className="text-[11px] text-white/60 block mb-2">强调色</label><div className="flex gap-2">{(['emerald', 'cyan', 'amber'] as const).map((color) => <button key={color} aria-label={`选择 ${color} 强调色`} onClick={() => setAccentColor(color)} className={clsx('w-10 h-10 rounded-xl border transition-transform', color === 'emerald' ? 'bg-emerald-400' : color === 'cyan' ? 'bg-cyan-400' : 'bg-amber-400', accentColor === color ? 'border-white scale-105' : 'border-white/10 opacity-55')} />)}</div></div>
-        <div><label className="text-[11px] text-white/60 block mb-2">玻璃模糊</label><LiquidSelect aria-label="玻璃模糊" value={glassBlur} onChange={(value) => setGlassBlur(value as typeof glassBlur)} options={[{ value: 'standard', label: '标准' }, { value: 'ultra', label: '增强' }, { value: 'max', label: '最高' }]} /></div>
-        <button type="button" role="switch" aria-checked={enableConfetti} onClick={() => setEnableConfetti(!enableConfetti)} className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4"><span className="text-left"><span className="text-[12px] text-white/85 block">完成动效</span><span className="text-[10px] text-white/50 mt-1 block">完成事项时播放轻量庆祝效果</span></span><span className={clsx('w-10 h-6 rounded-full border p-0.5 transition-colors', enableConfetti ? 'bg-[var(--accent-main)] border-white/30' : 'bg-white/[0.05] border-white/15')}><span className={clsx('block w-4 h-4 rounded-full bg-white transition-transform', enableConfetti && 'translate-x-4')} /></span></button>
-      </div>
-    </Panel>
-
-    <Panel>
-      <SectionTitle icon={Bot} title="AI 接入" meta="分类建议、每日摘要和工作状态整理" action={<span className="text-[9px] px-2 py-1 rounded-full border border-amber-400/20 bg-amber-400/10 text-amber-200">待配置</span>} />
-      <div className="space-y-3 text-[11px]">
-        <div className="rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4 space-y-3">
-          <div className="flex justify-between gap-3"><span className="text-white/55">配置入口</span><span className="text-white/85">设置 / AI 接入</span></div>
-          <div className="flex justify-between gap-3"><span className="text-white/55">调用出口</span><span className="text-emerald-300">NodeGateway</span></div>
-          <div className="flex justify-between gap-3"><span className="text-white/55">能力接口</span><span className="text-white/75 font-mono text-[10px]">{SHIGUANG_INTEGRATIONS.ai.backendCapability}</span></div>
-          <div className="flex justify-between gap-3"><span className="text-white/55">API 密钥</span><span className="text-emerald-300">仅后端保存</span></div>
-          <div className="flex justify-between gap-3"><span className="text-white/55">当前状态</span><span className={sync.connected ? 'text-amber-300' : 'text-white/45'}>{sync.connected ? '底座可达，Provider 待配置' : '等待 NodeGateway'}</span></div>
-        </div>
-        <SmallButton primary onClick={() => setAiOpen(true)}><Bot className="w-3.5 h-3.5" />打开 AI 接入</SmallButton>
-        <p className="text-[10px] text-white/45 leading-5">拾光不保存模型 API Key，也不直连外部模型。提供商、模型和密钥由 NodeGateway 的受控 Provider 配置。</p>
-      </div>
-    </Panel>
-
-    <Panel>
-      <SectionTitle icon={CloudCog} title="COS 接入" meta="经 NodeGateway 连接中心存储" action={<span className={clsx('text-[9px] px-2 py-1 rounded-full border', sync.connected ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200' : 'border-amber-400/20 bg-amber-400/10 text-amber-200')}>{sync.connected ? '已连接' : '未连接'}</span>} />
-      <div className="space-y-3 text-[11px]">
-        <div className="rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4 space-y-3">
-          <div className="flex justify-between"><span className="text-white/55">业务持久化</span><span className="text-emerald-300">COS 不可变版本</span></div>
-          <div className="flex justify-between"><span className="text-white/55">连接方式</span><span className="text-emerald-300">仅 NodeGateway</span></div>
-          <div className="flex justify-between"><span className="text-white/55">能力接口</span><span className="text-white/75 font-mono text-[10px]">{SHIGUANG_INTEGRATIONS.cos.backendCapability}</span></div>
-          <div className="flex justify-between"><span className="text-white/55">同步阶段</span><span className="text-white/80">{phaseLabel}</span></div>
-          <div className="flex justify-between"><span className="text-white/55">待提交变更</span><span className="text-white/80">{sync.dirty ? '有' : '无'}</span></div>
-          <div className="flex justify-between"><span className="text-white/55">远端 Head</span><span className={sync.headCount > 1 ? 'text-rose-300' : 'text-white/80'}>{sync.headCount} 个</span></div>
-          <div className="flex justify-between gap-3"><span className="text-white/55">当前版本</span><span className="text-white/70 font-mono text-[10px] text-right break-all">{shortDigest(sync.versionId)}</span></div>
-          <div className="flex justify-between gap-3"><span className="text-white/55">上次拉取</span><span className="text-white/70 text-right">{sync.lastPulledAt ?? '尚未拉取'}</span></div>
-          <div className="flex justify-between gap-3"><span className="text-white/55">上次提交</span><span className="text-white/70 text-right">{sync.lastSubmittedAt ?? '尚未提交'}</span></div>
-          <div className="flex justify-between"><span className="text-white/55">提交结果</span><span className="text-white/80">{submitLabel}</span></div>
-          <div className="flex justify-between gap-3"><span className="text-white/55">状态代码</span><span className="text-white/60 font-mono text-[10px] text-right break-all">{sync.code}</span></div>
-        </div>
-        {sync.headVersionIds.length > 1 && <div className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] p-4"><div className="text-[11px] font-semibold text-rose-200">检测到多个远端版本，已阻断自动覆盖</div><div className="mt-2 space-y-1">{sync.headVersionIds.map((head) => <div key={head} className="font-mono text-[9px] text-white/45 break-all">{head}</div>)}</div></div>}
-        {sync.error && sync.phase !== 'conflict' && <div role="alert" className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-[10px] text-amber-100">{sync.error}</div>}
-        <div className="flex flex-wrap gap-2"><SmallButton primary onClick={() => void sync.refresh()} disabled={sync.busy}><CloudCog className="w-3.5 h-3.5" />检测 COS 通道</SmallButton><SmallButton onClick={() => void sync.pullNow()} disabled={!sync.connected || sync.busy}>拉取已验证版本</SmallButton><SmallButton onClick={() => void sync.submitNow()} disabled={!sync.connected || sync.busy || !sync.dirty}>提交当前版本</SmallButton></div>
-        <p className="text-[10px] text-white/45 leading-5">这里不接受 SecretId、SecretKey 或 Bucket 地址。凭据、加密和不可覆盖写入全部由 NodeGateway 管理。</p>
-      </div>
-    </Panel>
-
-    <Panel>
-      <SectionTitle icon={MonitorSmartphone} title="三端协同" meta="三个独立节点经 COS 不可变对象流收敛，不是设备间直连" />
-      <div className="grid sm:grid-cols-2 gap-3">
-        {[
-          { label: '家庭电脑', icon: Home, state: '本机未验证', tone: 'text-white/45', note: '独立身份、独立缓存，只连接家庭 NodeGateway' },
-          { label: '办公电脑', icon: Building2, state: '本机未验证', tone: 'text-white/45', note: '独立身份、独立缓存、独立接入状态' },
-          { label: 'C·ONE', icon: MonitorSmartphone, state: '本机未验证', tone: 'text-white/45', note: '通过隔离 Edge Connector 使用获准工作视图' },
-          { label: 'COS 中心存储', icon: Cloud, state: sync.connected ? '经本机网关可达' : '等待本机网关', tone: sync.connected ? 'text-emerald-300' : 'text-amber-300', note: '唯一持久化真源，只做被动中转' },
-        ].map(({ label, icon: Icon, state, tone, note }) => <article key={label} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><div className="flex items-start justify-between gap-3"><span className="w-9 h-9 rounded-xl liquid-icon-well flex items-center justify-center text-emerald-300"><Icon className="w-4 h-4" /></span><span className={clsx('text-[10px]', tone)}>{state}</span></div><h3 className="text-[12px] font-semibold text-white mt-3">{label}</h3><p className="text-[10px] text-white/45 mt-1 leading-5">{note}</p></article>)}
-      </div>
-      <div className="mt-3 rounded-2xl border border-white/[0.08] bg-black/20 p-4 text-[10px] text-white/50 leading-5"><span className="text-emerald-300 font-semibold">“三端同步”的准确含义：</span>家庭电脑、办公电脑和 C·ONE 分别通过出站 HTTPS 与 COS 交换经过授权的加密版本；只有完成摘要、签名与版本头验证的内容才显示为已同步。任一节点未知时必须显示“未验证”，不得用本机在线替代三端成功。</div>
-    </Panel>
-
-    <Panel>
-      <SectionTitle icon={Database} title="本地状态" meta="当前工作台真实条目与迁移状态" />
-      <div className="grid grid-cols-3 gap-2">{[['事项', businessTasks.length], ['项目', workspaces.length], ['文件索引', files.length]].map(([label, value]) => <div key={String(label)} className="rounded-xl bg-white/[0.03] border border-white/[0.07] p-3 text-center"><div className="text-[18px] font-bold font-mono">{value}</div><div className="text-[9px] text-white/50 mt-1">{label}</div></div>)}</div>
-      <div className="rounded-2xl bg-white/[0.025] border border-white/[0.08] p-4 mt-3 text-[11px] flex justify-between"><span className="text-white/55">旧本地状态</span><span className={legacyLocalStatePresent ? 'text-amber-300' : 'text-emerald-300'}>{legacyLocalStatePresent ? '待迁移' : '无'}</span></div>
-      <p className="text-[10px] text-white/45 leading-5 mt-3">{SHIGUANG_INTEGRATIONS.ai.label} 与 {SHIGUANG_INTEGRATIONS.cos.label} 是两个独立入口，但共用同一个安全底座；任何密钥都不会进入 renderer。</p>
-    </Panel>
-
-    <LiquidModal open={aiOpen} onClose={() => setAiOpen(false)} title="AI 接入" subtitle="配置保留在 NodeGateway 后端" icon={<Bot className="w-5 h-5" />} footer={<div className="flex justify-end gap-2"><SmallButton onClick={() => setAiOpen(false)}>关闭</SmallButton><SmallButton primary onClick={() => void sync.refresh()} disabled={sync.busy}>检测接入底座</SmallButton></div>}>
-      <div className="space-y-3 text-[11px]">
-        <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3"><div className="text-white/45">Provider</div><div className="text-white/85 mt-1">待在 NodeGateway 配置</div></div>
-        <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3"><div className="text-white/45">模型</div><div className="text-white/85 mt-1">待配置</div></div>
-        <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3"><div className="text-white/45">能力接口</div><div className="text-white/85 mt-1 font-mono break-all">{SHIGUANG_INTEGRATIONS.ai.backendCapability}</div></div>
-        <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3"><div className="text-white/45">允许能力</div><div className="text-white/85 mt-1">候选分类、每日摘要、状态建议；不得直接执行任务</div></div>
-        <p className="text-[10px] text-white/45 leading-5">生产 Provider 未激活前保持待配置。后续接入不会在拾光本地保存 API Key，也不会新增通用代理。</p>
-      </div>
-    </LiquidModal>
   </div>;
 };

@@ -16,6 +16,11 @@ export interface SyncSnapshot {
   lastPulledAt: string | null;
   lastSubmittedAt: string | null;
   submitStatus: 'accepted' | 'committed' | null;
+  nodeId: string | null;
+  agentInstanceId: string | null;
+  gatewayBootGeneration: number | null;
+  globalReadmeSha256: string | null;
+  receiptDigest: string | null;
 }
 
 type GatewayBridge = NonNullable<Window['shiguangGateway']>;
@@ -35,6 +40,11 @@ const INITIAL_SNAPSHOT: SyncSnapshot = {
   lastPulledAt: null,
   lastSubmittedAt: null,
   submitStatus: null,
+  nodeId: null,
+  agentInstanceId: null,
+  gatewayBootGeneration: null,
+  globalReadmeSha256: null,
+  receiptDigest: null,
 };
 
 function stateFingerprint(state: ShiguangState): string {
@@ -46,7 +56,8 @@ export class ShiguangSyncController {
   private readonly importState: (state: unknown) => void;
   private readonly exportState: () => ShiguangState;
   private readonly now: () => string;
-  private readonly pollMs: number;
+  private pollMs: number;
+  private autoPull: boolean;
   private snapshot: SyncSnapshot = { ...INITIAL_SNAPSHOT };
   private readonly listeners = new Set<Listener>();
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -61,12 +72,14 @@ export class ShiguangSyncController {
     exportState: () => ShiguangState,
     now: () => string = () => new Date().toLocaleString('zh-CN'),
     pollMs = 60_000,
+    autoPull = true,
   ) {
     this.gateway = gateway;
     this.importState = importState;
     this.exportState = exportState;
     this.now = now;
     this.pollMs = pollMs;
+    this.autoPull = autoPull;
   }
 
   getSnapshot = (): SyncSnapshot => this.snapshot;
@@ -81,16 +94,28 @@ export class ShiguangSyncController {
     for (const listener of this.listeners) listener(this.snapshot);
   }
 
+  configurePolling(autoPull: boolean, pollMs: number): void {
+    this.autoPull = autoPull;
+    this.pollMs = Math.max(60_000, pollMs);
+    if (this.started) this.schedule();
+  }
+
+  private schedule(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = setInterval(() => {
+      if (this.autoPull && !this.snapshot.busy && !this.snapshot.dirty && this.snapshot.phase !== 'conflict') void this.pullNow();
+      else void this.refreshStatus();
+    }, this.pollMs);
+  }
+
   async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
     const generation = ++this.generation;
-    await this.pullNow();
+    if (this.autoPull) await this.pullNow();
+    else await this.refreshStatus();
     if (!this.started || generation !== this.generation) return;
-    this.timer = setInterval(() => {
-      if (!this.snapshot.busy && !this.snapshot.dirty && this.snapshot.phase !== 'conflict') void this.pullNow();
-      else void this.refreshStatus();
-    }, this.pollMs);
+    this.schedule();
   }
 
   stop(): void {
@@ -118,6 +143,11 @@ export class ShiguangSyncController {
         connected: result.value.connected,
         code: conflict ? 'SHIGUANG_STATE_CONFLICT' : result.value.code,
         error: conflict ? 'SHIGUANG_STATE_CONFLICT' : result.value.connected ? null : result.value.code,
+        nodeId: result.value.nodeId ?? null,
+        agentInstanceId: result.value.agentInstanceId ?? null,
+        gatewayBootGeneration: result.value.gatewayBootGeneration ?? null,
+        globalReadmeSha256: result.value.globalReadmeSha256 ?? null,
+        receiptDigest: result.value.receiptDigest ?? null,
       });
     } catch {
       this.update({ phase: 'offline', connected: false, code: 'NODEGATEWAY_STATUS_FAILED', error: 'NODEGATEWAY_STATUS_FAILED' });
@@ -166,6 +196,11 @@ export class ShiguangSyncController {
       this.update({
         phase: 'connected', configured: status.value.configured, connected: true,
         busy: false, code: status.value.code, error: null,
+        nodeId: status.value.nodeId ?? null,
+        agentInstanceId: status.value.agentInstanceId ?? null,
+        gatewayBootGeneration: status.value.gatewayBootGeneration ?? null,
+        globalReadmeSha256: status.value.globalReadmeSha256 ?? null,
+        receiptDigest: status.value.receiptDigest ?? null,
       });
       return this.snapshot;
     } catch (cause) {

@@ -5,8 +5,9 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import {
   AssetsPage, DashboardPage, InboxPage, KnowledgePage,
-  ProjectsPage, ReportsPage, SettingsPage, WorkItemsPage,
+  ProjectsPage, ReportsPage, WorkItemsPage,
 } from '@/pages/WorkbenchPages';
+import { SettingsPage } from '@/pages/SettingsPage';
 import { NewTaskModal } from '@/components/modals/NewTaskModal';
 import type { NavTab } from '@/types';
 import { AppProvider, useApp } from '@/context/AppContext';
@@ -46,8 +47,8 @@ class AppErrorBoundary extends React.Component<React.PropsWithChildren, { failed
 }
 
 function MainLayout() {
-  const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
-  const { isNewTaskOpen, setIsNewTaskOpen, addTask } = useApp();
+  const { isNewTaskOpen, setIsNewTaskOpen, addTask, startupPage } = useApp();
+  const [activeTab, setActiveTab] = useState<NavTab>(startupPage);
   const prevTab = useRef<NavTab>(activeTab);
   const [direction, setDirection] = useState(1);
   const [updateBanner, setUpdateBanner] = useState<{ version: string; url: string; visible: boolean }>({ version: '', url: '', visible: false });
@@ -117,13 +118,18 @@ function MainLayout() {
 export default function App() {
   return (
     <AppErrorBoundary>
-      <MotionConfig reducedMotion="user">
-        <AppProvider>
+      <AppProvider>
+        <AppMotion>
           <ShiguangSyncProvider>
             <MainLayout />
           </ShiguangSyncProvider>
-        </AppProvider>
-      </MotionConfig>
+        </AppMotion>
+      </AppProvider>
     </AppErrorBoundary>
   );
 }
+
+const AppMotion: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const { reducedMotion } = useApp();
+  return <MotionConfig reducedMotion={reducedMotion ? 'always' : 'user'}>{children}</MotionConfig>;
+};

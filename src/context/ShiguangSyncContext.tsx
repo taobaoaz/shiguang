@@ -11,7 +11,7 @@ interface ShiguangSyncContextValue extends SyncSnapshot {
 const ShiguangSyncContext = createContext<ShiguangSyncContextValue | undefined>(undefined);
 
 export const ShiguangSyncProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { exportShiguangState, importShiguangState } = useApp();
+  const { exportShiguangState, importShiguangState, autoPull, syncIntervalMinutes } = useApp();
   const exportRef = useRef(exportShiguangState);
   const importRef = useRef(importShiguangState);
   exportRef.current = exportShiguangState;
@@ -29,6 +29,7 @@ export const ShiguangSyncProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [snapshot, setSnapshot] = useState(controller.getSnapshot());
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
+  useEffect(() => controller.configurePolling(autoPull, syncIntervalMinutes * 60_000), [autoPull, controller, syncIntervalMinutes]);
   useEffect(() => {
     void controller.start();
     return () => controller.stop();

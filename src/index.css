@@ -550,3 +550,30 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+:root[data-density="compact"] .app-frame {
+  gap: 8px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+:root[data-density="compact"] .main-stack {
+  gap: 8px;
+}
+
+:root[data-density="compact"] section.liquid-glass {
+  padding: 0.875rem;
+}
+
+:root[data-density="compact"] .touch-action {
+  min-height: 2rem;
+}
+
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+}

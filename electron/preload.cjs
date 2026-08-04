@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('shiguang', Object.freeze({
   platform: process.platform,
   isElectron: true,
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  openWorkDisk: () => ipcRenderer.invoke('open-work-disk'),
   onUpdateAvailable: (callback) => {
     const listener = (_event, data) => callback(data);
     ipcRenderer.on('update-available', listener);

@@ -15,6 +15,6 @@ export const SHIGUANG_INTEGRATIONS = {
     configurationOwner: 'nodegateway',
     credentialOwner: 'nodegateway',
     directConnectionAllowed: false,
-    lifecycleState: 'pending',
+    lifecycleState: 'active',
   },
 } as const;

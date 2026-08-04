@@ -1,21 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { DailyBrief, FileDoc, FileGroupEntry, TaskItem, WorkStage } from '@/types';
+import type { DailyBrief, FileDoc, FileGroupEntry, NavTab, TaskItem, WorkStage } from '@/types';
 import confetti from 'canvas-confetti';
 import { emptyDailyBrief, parseShiguangState, SHIGUANG_STATE_SCHEMA, type ShiguangState } from '@/lib/shiguangState';
 import { canTransitionWorkItem, type WorkTransitionMode } from '@/lib/workbench';
+import { DEFAULT_UI_PREFERENCES, parseUiPreferences, type AccentColor, type GlassBlur, type InterfaceDensity, type SyncIntervalMinutes, type UiPreferences } from '@/lib/settings';
 
 const LEGACY_STORAGE_KEY = 'shiguang.local.state.v1';
 const PREFERENCES_KEY = 'shiguang.ui.preferences.v1';
 const DEFAULT_WORKSPACE = '个人工作台';
-
-type AccentColor = 'emerald' | 'cyan' | 'amber';
-type GlassBlur = 'standard' | 'ultra' | 'max';
-
-interface UiPreferences {
-  accentColor: AccentColor;
-  glassBlur: GlassBlur;
-  enableConfetti: boolean;
-}
 
 interface AppContextType {
   tasks: TaskItem[];
@@ -43,6 +35,16 @@ interface AppContextType {
   setGlassBlur: (blur: GlassBlur) => void;
   enableConfetti: boolean;
   setEnableConfetti: (val: boolean) => void;
+  reducedMotion: boolean;
+  setReducedMotion: (val: boolean) => void;
+  interfaceDensity: InterfaceDensity;
+  setInterfaceDensity: (value: InterfaceDensity) => void;
+  startupPage: NavTab;
+  setStartupPage: (value: NavTab) => void;
+  autoPull: boolean;
+  setAutoPull: (value: boolean) => void;
+  syncIntervalMinutes: SyncIntervalMinutes;
+  setSyncIntervalMinutes: (value: SyncIntervalMinutes) => void;
   exportShiguangState: () => ShiguangState;
   importShiguangState: (value: unknown) => void;
   isNewTaskOpen: boolean;
@@ -71,17 +73,11 @@ const loadInitialState = (): { state: ShiguangState; legacy: boolean } => {
 };
 
 const loadPreferences = (): UiPreferences => {
-  const fallback: UiPreferences = { accentColor: 'emerald', glassBlur: 'ultra', enableConfetti: false };
-  if (typeof window === 'undefined') return fallback;
+  if (typeof window === 'undefined') return DEFAULT_UI_PREFERENCES;
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(PREFERENCES_KEY) ?? '{}') as Record<string, unknown>;
-    return {
-      accentColor: ['emerald', 'cyan', 'amber'].includes(String(parsed.accentColor)) ? parsed.accentColor as AccentColor : 'emerald',
-      glassBlur: ['standard', 'ultra', 'max'].includes(String(parsed.glassBlur)) ? parsed.glassBlur as GlassBlur : 'ultra',
-      enableConfetti: typeof parsed.enableConfetti === 'boolean' ? parsed.enableConfetti : false,
-    };
+    return parseUiPreferences(JSON.parse(window.localStorage.getItem(PREFERENCES_KEY) ?? '{}'));
   } catch {
-    return fallback;
+    return DEFAULT_UI_PREFERENCES;
   }
 };
 
@@ -108,6 +104,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [accentColor, setAccentColor] = useState<AccentColor>(preferences.accentColor);
   const [glassBlur, setGlassBlur] = useState<GlassBlur>(preferences.glassBlur);
   const [enableConfetti, setEnableConfetti] = useState(preferences.enableConfetti);
+  const [reducedMotion, setReducedMotion] = useState(preferences.reducedMotion);
+  const [interfaceDensity, setInterfaceDensity] = useState(preferences.interfaceDensity);
+  const [startupPage, setStartupPage] = useState<NavTab>(preferences.startupPage);
+  const [autoPull, setAutoPull] = useState(preferences.autoPull);
+  const [syncIntervalMinutes, setSyncIntervalMinutes] = useState<SyncIntervalMinutes>(preferences.syncIntervalMinutes);
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
   const [legacyLocalStatePresent, setLegacyLocalStatePresent] = useState(initial.legacy);
 
@@ -117,6 +118,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const root = document.documentElement;
     root.dataset.accent = accentColor;
     root.dataset.blur = glassBlur;
+    root.dataset.density = interfaceDensity;
+    root.dataset.motion = reducedMotion ? 'reduced' : 'full';
     root.style.setProperty('--blur-liquid', glassBlur === 'standard' ? '24px' : glassBlur === 'ultra' ? '40px' : '56px');
     const accent = accentColor === 'cyan'
       ? ['#67e8f9', '#22d3ee', '#0891b2']
@@ -126,15 +129,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     root.style.setProperty('--accent-soft', accent[0]);
     root.style.setProperty('--accent-main', accent[1]);
     root.style.setProperty('--accent-deep', accent[2]);
-  }, [accentColor, glassBlur]);
+  }, [accentColor, glassBlur, interfaceDensity, reducedMotion]);
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(PREFERENCES_KEY, JSON.stringify({ accentColor, glassBlur, enableConfetti }));
+      window.localStorage.setItem(PREFERENCES_KEY, JSON.stringify({
+        accentColor, glassBlur, enableConfetti, reducedMotion, interfaceDensity,
+        startupPage, autoPull, syncIntervalMinutes,
+      } satisfies UiPreferences));
     } catch {
       // UI 偏好不可用时仅影响本次会话，不建立替代业务缓存。
     }
-  }, [accentColor, enableConfetti, glassBlur]);
+  }, [accentColor, autoPull, enableConfetti, glassBlur, interfaceDensity, reducedMotion, startupPage, syncIntervalMinutes]);
 
   const exportShiguangState = useCallback((): ShiguangState => ({
     schema_version: SHIGUANG_STATE_SCHEMA,
@@ -282,6 +288,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentWorkspace, setCurrentWorkspace, workspaces, addWorkspace,
       files, fileGroups, dailyBrief, addFile, linkFileToTask, updateFile,
       accentColor, setAccentColor, glassBlur, setGlassBlur, enableConfetti, setEnableConfetti,
+      reducedMotion, setReducedMotion, interfaceDensity, setInterfaceDensity,
+      startupPage, setStartupPage, autoPull, setAutoPull, syncIntervalMinutes, setSyncIntervalMinutes,
       exportShiguangState, importShiguangState,
       isNewTaskOpen, setIsNewTaskOpen, legacyLocalStatePresent,
     }}>
