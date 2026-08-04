@@ -78,3 +78,10 @@ test('credential input uses an isolated masked Windows dialog and stable stage e
   assert.match(script, /INTEGRATION_CREDENTIAL_PROMPT_FAILED/);
   assert.match(script, /INTEGRATION_CONFIG_WRITE_FAILED/);
 });
+
+test('COS setup reuses an identical existing binding without asking for credentials again', () => {
+  const script = fs.readFileSync(path.join(__dirname, 'integration-configurator.ps1'), 'utf8');
+  assert.match(script, /COS_CONFIGURATION_ALREADY_PRESENT/);
+  assert.match(script, /\$existingCos\.bucket -ceq \$bucket/);
+  assert.match(script, /\$existingCos\.region -ceq \$region/);
+});

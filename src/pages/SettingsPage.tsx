@@ -70,6 +70,7 @@ const gatewayCodeLabel = (code: string) => ({
   AI_CONNECTION_TEST_FAILED: 'AI 连接测试失败',
   AI_NOT_CONFIGURED: '请先配置 AI',
   COS_CONFIGURATION_SAVED: 'COS 配置已安全保存',
+  COS_CONFIGURATION_ALREADY_PRESENT: '已使用当前 COS 配置，无需重复输入密钥',
   INTEGRATION_USER_CANCELLED: '已取消配置',
   INTEGRATION_CREDENTIAL_PROMPT_FAILED: '本地密钥输入窗口启动失败',
   INTEGRATION_CONFIG_WRITE_FAILED: '本地安全配置写入失败',

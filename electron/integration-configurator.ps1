@@ -288,6 +288,10 @@ try {
         $bucket = [string]$inputValue.bucket
         $region = [string]$inputValue.region
         if ($bucket -cnotmatch '^[a-z0-9][a-z0-9-]{0,49}-[0-9]{5,20}$' -or $region -cnotmatch '^[a-z]{2,12}-[a-z0-9-]{2,40}$') { Fail 'COS_CONFIGURATION_INVALID' }
+        $existingCos = Read-CosMetadata
+        if ($existingCos.configured -and $existingCos.bucket -ceq $bucket -and $existingCos.region -ceq $region) {
+            Write-Result @{ ok = $true; code = 'COS_CONFIGURATION_ALREADY_PRESENT'; kind = 'cos'; cos = $existingCos }
+        }
         $stage = 'credential-prompt'
         $credential = Request-SecretCredential -Title 'Shiguang COS secure setup' -Message 'Enter SecretId and SecretKey. Saving replaces the current user COS binding.' -UserNameRequired $true -DefaultUserName ''
         $stage = 'config-write'
