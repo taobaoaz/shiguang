@@ -31,6 +31,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ open, task, onClos
   const [assignee, setAssignee] = useState('老大');
   const [description, setDescription] = useState('');
   const [nextAction, setNextAction] = useState('');
+  const [completionProgress, setCompletionProgress] = useState(0);
   const [attentionFlags, setAttentionFlags] = useState<AttentionFlag[]>([]);
 
   useEffect(() => {
@@ -43,6 +44,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ open, task, onClos
     setAssignee(task.assignee.name);
     setDescription(task.description);
     setNextAction(task.nextAction);
+    setCompletionProgress(['COMPLETED', 'ARCHIVED'].includes(task.stage) ? 100 : Math.min(100, Math.max(0, task.completionProgress ?? 0)));
     setAttentionFlags(task.attentionFlags);
   }, [open, task]);
 
@@ -71,6 +73,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ open, task, onClos
       },
       description: description.trim(),
       nextAction: trimmedNextAction,
+      completionProgress: ['COMPLETED', 'ARCHIVED'].includes(task.stage) ? 100 : completionProgress,
       attentionFlags,
       tags,
     });
@@ -111,6 +114,11 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ open, task, onClos
 
         <div><label htmlFor="edit-work-assignee" className="block text-[11px] text-white/55 mb-1.5">负责人</label><input id="edit-work-assignee" className={field} value={assignee} onChange={(event) => setAssignee(event.target.value)} /></div>
         <div><label htmlFor="edit-work-next" className="block text-[11px] text-white/55 mb-1.5">下一步 <span className="text-emerald-300">*</span></label><input id="edit-work-next" required className={field} value={nextAction} onChange={(event) => setNextAction(event.target.value)} placeholder="写清可以立即执行的下一步" /></div>
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
+          <div className="flex items-center justify-between gap-3 mb-2"><label htmlFor="edit-work-progress" className="text-[11px] text-white/55">有效进度</label><span className="font-mono text-[12px] text-emerald-300">{completionProgress}%</span></div>
+          <input id="edit-work-progress" type="range" min="0" max="100" step="5" value={completionProgress} disabled={['COMPLETED', 'ARCHIVED'].includes(task.stage)} onChange={(event) => setCompletionProgress(Number(event.target.value))} className="w-full accent-emerald-400 disabled:opacity-45" />
+          <p className="text-[10px] text-white/35 mt-2">用于项目完成度计算；事项进入“干完”或“归档”后固定为 100%。</p>
+        </div>
         <div><label htmlFor="edit-work-description" className="block text-[11px] text-white/55 mb-1.5">说明</label><textarea id="edit-work-description" rows={3} className={`${field} resize-none`} value={description} onChange={(event) => setDescription(event.target.value)} /></div>
         <fieldset>
           <legend className="text-[11px] text-white/55 mb-2">注意事项</legend>

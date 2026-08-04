@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { TaskItem } from '../types/index.ts';
 import {
-  countByStage, dateToLocalIso, fileTagValue, getSource, getWorkItemType,
-  isOverdue, visibleTasks, workStageGroup, workStageLabel,
+  canTransitionWorkItem, countByStage, dateToLocalIso, effectiveTaskProgress,
+  fileTagValue, getSource, getWorkItemType, isOverdue, projectCompletion,
+  visibleTasks, workStageGroup, workStageLabel,
 } from './workbench.ts';
 
 const task = (overrides: Partial<TaskItem> = {}): TaskItem => ({
@@ -56,4 +57,22 @@ test('local calendar date and overdue checks do not depend on UTC day boundaries
 test('asset tag values expose explicit pending state instead of inventing data', () => {
   assert.equal(fileTagValue(['IP:10.0.0.1'], 'IP'), '10.0.0.1');
   assert.equal(fileTagValue([], '位置'), '待确认');
+});
+
+test('only incidents can use the received-to-in-progress fast track', () => {
+  const incident = task({ tags: ['类型:故障', '来源:快速录入'] });
+  assert.equal(canTransitionWorkItem(incident, 'IN_PROGRESS'), false);
+  assert.equal(canTransitionWorkItem(incident, 'IN_PROGRESS', 'incident-fast-track'), true);
+  assert.equal(canTransitionWorkItem(task(), 'IN_PROGRESS', 'incident-fast-track'), false);
+});
+
+test('project completion averages effective progress with terminal stages fixed at 100', () => {
+  const result = projectCompletion([
+    task({ id: 'WORK-1', completionProgress: 40 }),
+    task({ id: 'WORK-2', stage: 'COMPLETED', completionProgress: 10, completedAt: '2026-08-03T00:00:00Z' }),
+    task({ id: 'WORK-3', completionProgress: 200 }),
+  ]);
+  assert.equal(effectiveTaskProgress(task({ completionProgress: -20 })), 0);
+  assert.deepEqual(result, { progress: 80, total: 3, progressSum: 240 });
+  assert.deepEqual(projectCompletion([]), { progress: 0, total: 0, progressSum: 0 });
 });

@@ -1,8 +1,8 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Boxes, ChevronRight, CircleGauge, FolderKanban, HardDrive, Inbox,
-  ListChecks, RefreshCw, Settings, ShieldCheck,
+  ListChecks, MoreHorizontal, RefreshCw, Settings, ShieldCheck,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { NavTab } from '@/types';
@@ -24,14 +24,21 @@ const navItems: { id: NavTab; label: string; icon: React.ElementType }[] = [
   { id: 'settings', label: '设置', icon: Settings },
 ];
 
+const mobilePrimary = navItems.filter((item) => ['dashboard', 'inbox', 'work', 'projects'].includes(item.id));
+const mobileMore = navItems.filter((item) => ['assets', 'knowledge', 'reports', 'settings'].includes(item.id));
+
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
+  const [moreOpen, setMoreOpen] = useState(false);
   const { connected, phase, dirty, busy, headCount, refresh } = useShiguangSync();
   const statusText = connected
     ? dirty ? '本地有待同步变更' : `已连接 · ${headCount} 条`
     : '本地模式';
 
+  const navigate = (tab: NavTab) => { setMoreOpen(false); onTabChange(tab); };
+
   return (
-    <aside className="liquid-glass sidebar-shell h-full w-full min-w-0 min-h-0 flex flex-col p-3.5 select-none overflow-hidden">
+    <>
+    <aside className="desktop-sidebar liquid-glass sidebar-shell h-full w-full min-w-0 min-h-0 flex flex-col p-3.5 select-none overflow-hidden">
       <div className="sidebar-brand flex items-center gap-2.5 px-1.5 pt-1 pb-5">
         <div className="w-9 h-9 rounded-[12px] bg-gradient-to-br from-emerald-300 via-emerald-400 to-teal-500 flex items-center justify-center font-extrabold text-[#04120c] text-[13px] shadow-[0_0_24px_rgba(16,185,129,0.45)] border border-white/40 shrink-0">
           SG
@@ -53,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
               aria-current={isActive ? 'page' : undefined}
               aria-label={item.label}
               title={item.label}
-              onClick={() => onTabChange(item.id)}
+              onClick={() => navigate(item.id)}
               className={clsx(
                 'w-full flex items-center justify-between px-3 py-2.5 rounded-2xl text-[13px] font-medium transition-all duration-300 relative group',
                 isActive ? 'text-white' : 'text-white/45 hover:text-white/80',
@@ -102,7 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
 
         <button
           type="button"
-          onClick={() => onTabChange('settings')}
+          onClick={() => navigate('settings')}
           className="w-full liquid-pill flex items-center gap-2.5 px-2.5 py-2 hover:border-white/20 transition-colors"
           title="个人设置"
         >
@@ -114,5 +121,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
         </button>
       </div>
     </aside>
+    <nav className="mobile-tabbar liquid-glass" aria-label="移动端主导航">
+      {mobilePrimary.map((item) => {
+        const Icon = item.icon;
+        const active = item.id === activeTab;
+        return <button key={item.id} type="button" aria-current={active ? 'page' : undefined} onClick={() => navigate(item.id)} className={clsx('mobile-tab', active && 'is-active')}><Icon className="w-[19px] h-[19px]" /><span>{item.label.replace('今日工作台', '今日').replace('工作事项', '事项').replace('信息化项目', '项目')}</span></button>;
+      })}
+      <button type="button" aria-expanded={moreOpen} onClick={() => setMoreOpen((value) => !value)} className={clsx('mobile-tab', (moreOpen || mobileMore.some((item) => item.id === activeTab)) && 'is-active')}><MoreHorizontal className="w-[19px] h-[19px]" /><span>更多</span></button>
+    </nav>
+    <AnimatePresence>
+      {moreOpen && <motion.div className="mobile-more-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMoreOpen(false)}>
+        <motion.div className="mobile-more-sheet liquid-glass" initial={{ y: 48, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 32, opacity: 0 }} transition={{ type: 'spring', stiffness: 360, damping: 30 }} onClick={(event) => event.stopPropagation()}>
+          <div className="mobile-sheet-handle" />
+          <div className="grid grid-cols-2 gap-2">
+            {mobileMore.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" onClick={() => navigate(item.id)} className={clsx('mobile-more-item', activeTab === item.id && 'is-active')}><Icon className="w-5 h-5" /><span>{item.label}</span></button>; })}
+          </div>
+          <div className="mt-3 flex items-center justify-between rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-[10px]"><span className="text-white/45">本机 NodeGateway</span><span className={connected ? 'text-emerald-300' : 'text-amber-300'}>{connected ? '已连接' : '本地模式'}</span></div>
+        </motion.div>
+      </motion.div>}
+    </AnimatePresence>
+    </>
   );
 };

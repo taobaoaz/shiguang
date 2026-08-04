@@ -71,7 +71,7 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
       {open && (
         <motion.div
           key="liquid-modal-root"
-          className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6"
+          className="liquid-modal-root fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -99,7 +99,7 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
             exit={{ opacity: 0, y: 20, scale: 0.96, filter: 'blur(8px)' }}
             transition={{ type: 'spring', stiffness: 360, damping: 26, mass: 0.8 }}
             className={clsx(
-              'relative w-full max-h-[calc(100dvh-2rem)] liquid-glass overflow-hidden p-0 text-white z-10 flex flex-col',
+              'liquid-modal-panel relative w-full max-h-[calc(100dvh-2rem)] liquid-glass overflow-hidden p-0 text-white z-10 flex flex-col',
               widthClass,
               className
             )}

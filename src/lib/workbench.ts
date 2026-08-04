@@ -1,5 +1,7 @@
 import type { AttentionFlag, TaskItem, WorkItemType, WorkStage } from '@/types';
 
+export type WorkTransitionMode = 'standard' | 'incident-fast-track';
+
 export const visibleTasks = (tasks: TaskItem[]) => tasks;
 
 export const getTaggedValue = (tags: string[], prefix: string) =>
@@ -29,6 +31,39 @@ export const workStageGroup: Record<WorkStage, string> = {
 };
 
 export const stageOrder: WorkStage[] = ['RECEIVED', 'TRIAGED', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED'];
+
+const standardTransitions: Record<WorkStage, WorkStage[]> = {
+  RECEIVED: ['TRIAGED'],
+  TRIAGED: ['IN_PROGRESS'],
+  IN_PROGRESS: ['COMPLETED'],
+  COMPLETED: ['IN_PROGRESS', 'ARCHIVED'],
+  ARCHIVED: ['TRIAGED'],
+};
+
+export const canTransitionWorkItem = (
+  task: TaskItem,
+  target: WorkStage,
+  mode: WorkTransitionMode = 'standard',
+) => {
+  if (standardTransitions[task.stage].includes(target)) return true;
+  return mode === 'incident-fast-track'
+    && getWorkItemType(task) === '故障'
+    && task.stage === 'RECEIVED'
+    && target === 'IN_PROGRESS';
+};
+
+export const effectiveTaskProgress = (task: TaskItem) => {
+  if (task.stage === 'COMPLETED' || task.stage === 'ARCHIVED') return 100;
+  const value = Number(task.completionProgress ?? 0);
+  return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
+};
+
+export const projectCompletion = (tasks: TaskItem[]) => {
+  const total = tasks.length;
+  if (total === 0) return { progress: 0, total, progressSum: 0 };
+  const progressSum = tasks.reduce((sum, task) => sum + effectiveTaskProgress(task), 0);
+  return { progress: Math.round(progressSum / total), total, progressSum };
+};
 
 export const attentionLabel: Record<AttentionFlag, string> = {
   BLOCKED: '阻塞',

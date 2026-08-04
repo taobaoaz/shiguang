@@ -27,13 +27,13 @@ interface WorkflowBoardProps {
 }
 
 export const WorkflowBoard: React.FC<WorkflowBoardProps> = ({ tasks, selectedId, onSelect }) => (
-  <div className="overflow-x-auto pb-2" aria-label="五阶段工作流">
-    <div className="grid grid-cols-5 gap-3 min-w-[1080px]">
+  <div className="workflow-scroll overflow-x-auto pb-2" aria-label="五阶段工作流">
+    <div className="workflow-grid grid grid-cols-5 gap-3 min-w-[1080px]">
       {stageOrder.map((stage) => {
         const Icon = stageIcon[stage];
         const items = tasks.filter((task) => task.stage === stage);
         return (
-          <section key={stage} className={clsx('rounded-2xl border p-3 min-h-[330px]', stageTone[stage])} aria-labelledby={`stage-${stage}`}>
+          <section key={stage} className={clsx('workflow-column rounded-2xl border p-3 min-h-[330px]', stageTone[stage])} aria-labelledby={`stage-${stage}`}>
             <header className="flex items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-2 min-w-0">
                 <Icon className="w-4 h-4 shrink-0" />

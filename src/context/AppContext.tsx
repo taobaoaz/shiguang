@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import type { DailyBrief, FileDoc, FileGroupEntry, TaskItem, WorkStage } from '@/types';
 import confetti from 'canvas-confetti';
 import { emptyDailyBrief, parseShiguangState, SHIGUANG_STATE_SCHEMA, type ShiguangState } from '@/lib/shiguangState';
+import { canTransitionWorkItem, type WorkTransitionMode } from '@/lib/workbench';
 
 const LEGACY_STORAGE_KEY = 'shiguang.local.state.v1';
 const PREFERENCES_KEY = 'shiguang.ui.preferences.v1';
@@ -23,7 +24,7 @@ interface AppContextType {
   setSelectedTask: (task: TaskItem | null) => void;
   addTask: (task: Partial<TaskItem>) => void;
   updateTask: (taskId: string, updates: Partial<TaskItem>) => void;
-  moveTask: (taskId: string, stage: WorkStage, note?: string) => void;
+  moveTask: (taskId: string, stage: WorkStage, note?: string, mode?: WorkTransitionMode) => void;
   completeTask: (taskId: string) => void;
   archiveTask: (taskId: string) => void;
   currentWorkspace: string;
@@ -34,6 +35,7 @@ interface AppContextType {
   fileGroups: FileGroupEntry[];
   dailyBrief: DailyBrief;
   addFile: (file: Partial<FileDoc>, workItemId?: string) => void;
+  linkFileToTask: (fileId: string, workItemId: string) => void;
   updateFile: (fileId: string, updates: Partial<FileDoc>) => void;
   accentColor: AccentColor;
   setAccentColor: (color: AccentColor) => void;
@@ -91,14 +93,6 @@ const groupForStage: Record<WorkStage, FileGroupEntry['groupId']> = {
   IN_PROGRESS: 'in-progress',
   COMPLETED: 'completed',
   ARCHIVED: 'archived',
-};
-
-const allowedTransitions: Record<WorkStage, WorkStage[]> = {
-  RECEIVED: ['TRIAGED'],
-  TRIAGED: ['IN_PROGRESS'],
-  IN_PROGRESS: ['COMPLETED'],
-  COMPLETED: ['IN_PROGRESS', 'ARCHIVED'],
-  ARCHIVED: ['TRIAGED'],
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -184,15 +178,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedTask((prev) => prev?.id === taskId ? { ...prev, ...updates, id: prev.id, updatedAt: timestamp } : prev);
   }, []);
 
-  const moveTask = useCallback((taskId: string, stage: WorkStage, note = '') => {
+  const moveTask = useCallback((taskId: string, stage: WorkStage, note = '', mode: WorkTransitionMode = 'standard') => {
     const current = tasks.find((task) => task.id === taskId);
-    if (!current || !allowedTransitions[current.stage].includes(stage)) return;
+    if (!current || !canTransitionWorkItem(current, stage, mode)) return;
     const timestamp = new Date().toISOString();
+    const fastTracked = mode === 'incident-fast-track';
     const updates: Partial<TaskItem> = {
       stage,
       updatedAt: timestamp,
       completionProgress: stage === 'COMPLETED' || stage === 'ARCHIVED' ? 100 : current.completionProgress,
       aiSuggestions: note ? [...(current.aiSuggestions ?? []), note] : current.aiSuggestions,
+      tags: fastTracked && !current.tags.includes('流程:故障快线') ? [...current.tags, '流程:故障快线'] : current.tags,
+      attentionFlags: fastTracked && !current.attentionFlags.includes('IMPORTANT') ? [...current.attentionFlags, 'IMPORTANT'] : current.attentionFlags,
+      nextAction: fastTracked && current.nextAction === '待分类' ? '先恢复业务，处置完成后补分类' : current.nextAction,
     };
     if (stage === 'COMPLETED') updates.completedAt = timestamp;
     if (current.stage === 'COMPLETED' && stage === 'IN_PROGRESS') updates.completedAt = undefined;
@@ -244,6 +242,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updateTask(task.id, { fileRefs: [...task.fileRefs, next.id] });
   }, [tasks, updateTask]);
 
+  const linkFileToTask = useCallback((fileId: string, workItemId: string) => {
+    const file = files.find((item) => item.id === fileId);
+    const task = tasks.find((item) => item.id === workItemId);
+    if (!file || !task || fileGroups.some((entry) => entry.fileId === fileId)) return;
+    const timestamp = new Date().toISOString();
+    setFileGroups((prev) => [{
+      fileId,
+      groupId: groupForStage[task.stage],
+      workItemId: task.id,
+      residency: 'metadata-only',
+      updatedAt: timestamp,
+    }, ...prev]);
+    updateTask(task.id, { fileRefs: task.fileRefs.includes(fileId) ? task.fileRefs : [...task.fileRefs, fileId] });
+  }, [fileGroups, files, tasks, updateTask]);
+
   const updateFile = useCallback((fileId: string, updates: Partial<FileDoc>) => {
     setFiles((prev) => prev.map((file) => file.id === fileId ? { ...file, ...updates, id: file.id, updatedAt: new Date().toISOString() } : file));
   }, []);
@@ -267,7 +280,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       tasks, businessTasks, selectedTask, setSelectedTask, addTask, updateTask, moveTask, completeTask, archiveTask,
       currentWorkspace, setCurrentWorkspace, workspaces, addWorkspace,
-      files, fileGroups, dailyBrief, addFile, updateFile,
+      files, fileGroups, dailyBrief, addFile, linkFileToTask, updateFile,
       accentColor, setAccentColor, glassBlur, setGlassBlur, enableConfetti, setEnableConfetti,
       exportShiguangState, importShiguangState,
       isNewTaskOpen, setIsNewTaskOpen, legacyLocalStatePresent,
