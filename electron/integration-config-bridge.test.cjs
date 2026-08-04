@@ -1,4 +1,6 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 
 const {
@@ -53,4 +55,11 @@ test('configurator output is reduced to public status metadata', () => {
     cos: { configured: true, bucket: 'bucket-1234567890', region: 'ap-beijing' },
   });
   assert.equal(JSON.stringify(result).includes('forbidden'), false);
+});
+
+test('DPAPI helper copies the BSTR byte length exactly', () => {
+  const script = fs.readFileSync(path.join(__dirname, 'integration-configurator.ps1'), 'utf8');
+  assert.match(script, /ReadInt32\(\$pointer, -4\)/);
+  assert.match(script, /New-Object byte\[\] \$byteCount/);
+  assert.doesNotMatch(script, /\$byteCount \* 2|\$charCount \* 2/);
 });

@@ -11,6 +11,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+Add-Type -AssemblyName System.Security
 
 $SchemaVersion = 'shiguang.integration-config-result.v1'
 $SecretsRoot = Join-Path $env:USERPROFILE '.workbuddy\secrets'
@@ -86,9 +87,9 @@ function Protect-SecureString([Security.SecureString]$SecureValue) {
     $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureValue)
     $bytes = $null
     try {
-        $charCount = [Runtime.InteropServices.Marshal]::ReadInt32($pointer, -4)
-        if ($charCount -lt 1 -or $charCount -gt 4096) { Fail 'INTEGRATION_CREDENTIAL_INVALID' }
-        $bytes = New-Object byte[] ($charCount * 2)
+        $byteCount = [Runtime.InteropServices.Marshal]::ReadInt32($pointer, -4)
+        if ($byteCount -lt 2 -or $byteCount -gt 8192 -or ($byteCount % 2) -ne 0) { Fail 'INTEGRATION_CREDENTIAL_INVALID' }
+        $bytes = New-Object byte[] $byteCount
         [Runtime.InteropServices.Marshal]::Copy($pointer, $bytes, 0, $bytes.Length)
         $protected = [Security.Cryptography.ProtectedData]::Protect(
             $bytes,
