@@ -72,11 +72,7 @@ function Write-PrivateUtf8([string]$Path, [string]$Content) {
     try {
         [IO.File]::WriteAllText($temporary, $Content, (New-Object Text.UTF8Encoding($false)))
         Set-PrivateAcl $temporary
-        if (Test-Path -LiteralPath $Path -PathType Leaf) {
-            [IO.File]::Replace($temporary, $Path, $null)
-        } else {
-            [IO.File]::Move($temporary, $Path)
-        }
+        Move-Item -LiteralPath $temporary -Destination $Path -Force
         Set-PrivateAcl $Path
     } finally {
         if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force }

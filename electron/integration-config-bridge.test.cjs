@@ -63,3 +63,9 @@ test('DPAPI helper copies the BSTR byte length exactly', () => {
   assert.match(script, /New-Object byte\[\] \$byteCount/);
   assert.doesNotMatch(script, /\$byteCount \* 2|\$charCount \* 2/);
 });
+
+test('secure writer replaces an existing config without the unsupported null backup path', () => {
+  const script = fs.readFileSync(path.join(__dirname, 'integration-configurator.ps1'), 'utf8');
+  assert.match(script, /Move-Item -LiteralPath \$temporary -Destination \$Path -Force/);
+  assert.doesNotMatch(script, /\[IO\.File\]::Replace\([^\r\n]+\$null\)/);
+});
