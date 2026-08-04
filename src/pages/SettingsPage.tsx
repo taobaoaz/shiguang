@@ -71,6 +71,8 @@ const gatewayCodeLabel = (code: string) => ({
   AI_NOT_CONFIGURED: '请先配置 AI',
   COS_CONFIGURATION_SAVED: 'COS 配置已安全保存',
   INTEGRATION_USER_CANCELLED: '已取消配置',
+  INTEGRATION_CREDENTIAL_PROMPT_FAILED: '本地密钥输入窗口启动失败',
+  INTEGRATION_CONFIG_WRITE_FAILED: '本地安全配置写入失败',
   INTEGRATION_CONFIGURATOR_MISSING: '安全配置器缺失，请重新安装拾光',
   INTEGRATION_CONFIGURATOR_FAILED: '安全配置器执行失败',
 }[code] ?? code);
@@ -291,7 +293,7 @@ export const SettingsPage: React.FC = () => {
       </div>
     </Panel>
 
-    <LiquidModal open={aiOpen} onClose={() => setAiOpen(false)} title="AI 安全接入" subtitle="填写非敏感参数，API Key 在 Windows 原生安全提示中输入" icon={<Bot className="w-5 h-5" />} widthClass="max-w-2xl" footer={<div className="flex justify-end gap-2"><SmallButton onClick={() => setAiOpen(false)}>关闭</SmallButton><SmallButton primary onClick={() => void configureIntegration('ai')} disabled={integrationBusy || !aiForm.endpoint || !aiForm.model}><KeyRound className="w-3.5 h-3.5" />安全保存 API Key</SmallButton></div>}>
+    <LiquidModal open={aiOpen} onClose={() => setAiOpen(false)} title="AI 安全接入" subtitle="填写非敏感参数，API Key 在独立的 Windows 本地安全窗口中输入" icon={<Bot className="w-5 h-5" />} widthClass="max-w-2xl" footer={<div className="flex justify-end gap-2"><SmallButton onClick={() => setAiOpen(false)}>关闭</SmallButton><SmallButton primary onClick={() => void configureIntegration('ai')} disabled={integrationBusy || !aiForm.endpoint || !aiForm.model}><KeyRound className="w-3.5 h-3.5" />安全保存 API Key</SmallButton></div>}>
       <div className="space-y-3 text-[11px]">
         <div className="grid sm:grid-cols-2 gap-3 rounded-2xl bg-white/[0.03] border border-white/[0.08] p-4">
           <label className="text-white/60">接口地址
@@ -313,7 +315,7 @@ export const SettingsPage: React.FC = () => {
       </div>
     </LiquidModal>
 
-    <LiquidModal open={cosOpen} onClose={() => setCosOpen(false)} title="COS 安全接入" subtitle="填写桶和地域，SecretId/SecretKey 在 Windows 原生安全提示中输入" icon={<CloudCog className="w-5 h-5" />} widthClass="max-w-2xl" footer={<div className="flex justify-end gap-2"><SmallButton onClick={() => setCosOpen(false)}>关闭</SmallButton><SmallButton primary onClick={() => void configureIntegration('cos')} disabled={integrationBusy || !cosForm.bucket || !cosForm.region}><KeyRound className="w-3.5 h-3.5" />安全保存 COS 凭据</SmallButton></div>}>
+    <LiquidModal open={cosOpen} onClose={() => setCosOpen(false)} title="COS 安全接入" subtitle="填写桶和地域，SecretId/SecretKey 在独立的 Windows 本地安全窗口中输入" icon={<CloudCog className="w-5 h-5" />} widthClass="max-w-2xl" footer={<div className="flex justify-end gap-2"><SmallButton onClick={() => setCosOpen(false)}>关闭</SmallButton><SmallButton primary onClick={() => void configureIntegration('cos')} disabled={integrationBusy || !cosForm.bucket || !cosForm.region}><KeyRound className="w-3.5 h-3.5" />安全保存 COS 凭据</SmallButton></div>}>
       <div className="space-y-3 text-[11px]">
         <div className="grid sm:grid-cols-2 gap-3 rounded-2xl bg-white/[0.03] border border-white/[0.08] p-4">
           <label className="text-white/60">存储桶（含 APPID）

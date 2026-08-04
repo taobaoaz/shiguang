@@ -18,7 +18,7 @@
 - 工作统计：仅统计当前工作台真实数据，不展示演示指标
 - 五层工作流：收到工作、分类工作、正在干的、干完的、归档的
 - AI 状态整理：只接受后端受限接口返回的候选分类，不把建议伪装成已完成
-- 设置：独立且可操作的 AI、COS 与本地底座接入入口；密钥只在 Windows 原生安全提示中输入
+- 设置：独立且可操作的 AI、COS 与本地底座接入入口；密钥只在独立的 Windows 本地安全窗口中输入
 - 同步诊断：显示远端 Head、版本、拉取/提交时间、状态代码和冲突版本，冲突时阻断覆盖
 - 移动交互：底部主导航、更多功能抽屉、全屏搜索、44px 触控目标、横向阶段滑动和底部表单
 
@@ -104,7 +104,7 @@ React renderer → preload 固定 IPC → Electron main → 127.0.0.1 NodeGatewa
 
 ```text
 renderer 非秘密字段 → 固定 IPC schema → Windows 安全配置器 → NodeGateway 配置
-                              └─ API Key / SecretId / SecretKey 仅在原生凭据提示中输入
+                              └─ API Key / SecretId / SecretKey 仅在本地受限密钥窗口中输入
 ```
 
 AI API Key 使用 DPAPI CurrentUser 保存；COS 继续使用 NodeGateway 既有受限 `cos.env`。配置器只返回脱敏状态，不创建通用代理，不静默安装计划任务，也不会自动发送 AI 测试请求。

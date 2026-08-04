@@ -12,6 +12,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 Add-Type -AssemblyName System.Security
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 
 $SchemaVersion = 'shiguang.integration-config-result.v1'
 $SecretsRoot = Join-Path $env:USERPROFILE '.workbuddy\secrets'
@@ -28,6 +30,85 @@ function Write-Result([hashtable]$Value, [int]$ExitCode = 0) {
 
 function Fail([string]$Code) {
     Write-Result @{ ok = $false; code = $Code } 2
+}
+
+function Request-SecretCredential(
+    [string]$Title,
+    [string]$Message,
+    [bool]$UserNameRequired,
+    [string]$DefaultUserName
+) {
+    $form = New-Object Windows.Forms.Form
+    $form.Text = $Title
+    $form.ClientSize = New-Object Drawing.Size(480, 230)
+    $form.FormBorderStyle = [Windows.Forms.FormBorderStyle]::FixedDialog
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.ShowInTaskbar = $true
+    $form.StartPosition = [Windows.Forms.FormStartPosition]::CenterScreen
+    $form.TopMost = $true
+
+    $messageLabel = New-Object Windows.Forms.Label
+    $messageLabel.Text = $Message
+    $messageLabel.Location = New-Object Drawing.Point(20, 18)
+    $messageLabel.Size = New-Object Drawing.Size(440, 42)
+
+    $userLabel = New-Object Windows.Forms.Label
+    $userLabel.Text = if ($UserNameRequired) { 'SecretId' } else { 'Account' }
+    $userLabel.Location = New-Object Drawing.Point(20, 72)
+    $userLabel.Size = New-Object Drawing.Size(100, 22)
+
+    $userBox = New-Object Windows.Forms.TextBox
+    $userBox.Location = New-Object Drawing.Point(125, 69)
+    $userBox.Size = New-Object Drawing.Size(335, 24)
+    $userBox.Text = $DefaultUserName
+    $userBox.ReadOnly = -not $UserNameRequired
+
+    $passwordLabel = New-Object Windows.Forms.Label
+    $passwordLabel.Text = if ($UserNameRequired) { 'SecretKey' } else { 'API Key' }
+    $passwordLabel.Location = New-Object Drawing.Point(20, 112)
+    $passwordLabel.Size = New-Object Drawing.Size(100, 22)
+
+    $passwordBox = New-Object Windows.Forms.TextBox
+    $passwordBox.Location = New-Object Drawing.Point(125, 109)
+    $passwordBox.Size = New-Object Drawing.Size(335, 24)
+    $passwordBox.UseSystemPasswordChar = $true
+
+    $okButton = New-Object Windows.Forms.Button
+    $okButton.Text = 'Save securely'
+    $okButton.Location = New-Object Drawing.Point(260, 165)
+    $okButton.Size = New-Object Drawing.Size(110, 32)
+    $okButton.DialogResult = [Windows.Forms.DialogResult]::OK
+
+    $cancelButton = New-Object Windows.Forms.Button
+    $cancelButton.Text = 'Cancel'
+    $cancelButton.Location = New-Object Drawing.Point(380, 165)
+    $cancelButton.Size = New-Object Drawing.Size(80, 32)
+    $cancelButton.DialogResult = [Windows.Forms.DialogResult]::Cancel
+
+    $form.Controls.AddRange(@($messageLabel, $userLabel, $userBox, $passwordLabel, $passwordBox, $okButton, $cancelButton))
+    $form.AcceptButton = $okButton
+    $form.CancelButton = $cancelButton
+    $form.Add_Shown({ $passwordBox.Select() })
+    try {
+        if ($form.ShowDialog() -ne [Windows.Forms.DialogResult]::OK) {
+            Fail 'INTEGRATION_USER_CANCELLED'
+        }
+        $userName = $userBox.Text.Trim()
+        $plainText = $passwordBox.Text
+        if ([string]::IsNullOrEmpty($userName) -or [string]::IsNullOrEmpty($plainText)) {
+            Fail 'INTEGRATION_CREDENTIAL_INVALID'
+        }
+        $secureValue = New-Object Security.SecureString
+        foreach ($character in $plainText.ToCharArray()) { $secureValue.AppendChar($character) }
+        $secureValue.MakeReadOnly()
+        $passwordBox.Clear()
+        $plainText = $null
+        return [Management.Automation.PSCredential]::new($userName, $secureValue)
+    } finally {
+        $passwordBox.Clear()
+        $form.Dispose()
+    }
 }
 
 function Decode-Input {
@@ -170,6 +251,7 @@ function Read-RuntimeMetadata {
 }
 
 try {
+    $stage = 'input'
     $inputValue = Decode-Input
     if ($Action -ceq 'status') {
         Write-Result @{
@@ -186,8 +268,9 @@ try {
         $endpoint = [Uri][string]$inputValue.endpoint
         $model = [string]$inputValue.model
         if ($endpoint.Scheme -cne 'https' -or $endpoint.AbsolutePath -cne '/v1/chat/completions' -or -not [string]::IsNullOrEmpty($endpoint.Query) -or -not [string]::IsNullOrEmpty($endpoint.Fragment) -or -not [string]::IsNullOrEmpty($endpoint.UserInfo) -or -not $endpoint.IsDefaultPort -or $endpoint.DnsSafeHost -cnotmatch '^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$' -or $model -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$') { Fail 'AI_CONFIGURATION_INVALID' }
-        $credential = Get-Credential -UserName 'api-key' -Message 'Shiguang AI secure setup: enter the model API key in the password field. It will be protected with Windows DPAPI CurrentUser.'
-        if ($null -eq $credential) { Fail 'INTEGRATION_USER_CANCELLED' }
+        $stage = 'credential-prompt'
+        $credential = Request-SecretCredential -Title 'Shiguang AI secure setup' -Message 'Enter the model API key. It will be protected with Windows DPAPI CurrentUser.' -UserNameRequired $false -DefaultUserName 'api-key'
+        $stage = 'config-write'
         $document = [ordered]@{
             schema_version = 'paw.shiguang.ai-provider-config.v1'
             endpoint = $endpoint.AbsoluteUri
@@ -205,8 +288,9 @@ try {
         $bucket = [string]$inputValue.bucket
         $region = [string]$inputValue.region
         if ($bucket -cnotmatch '^[a-z0-9][a-z0-9-]{0,49}-[0-9]{5,20}$' -or $region -cnotmatch '^[a-z]{2,12}-[a-z0-9-]{2,40}$') { Fail 'COS_CONFIGURATION_INVALID' }
-        $credential = Get-Credential -Message 'Shiguang COS secure setup: enter SecretId as the user name and SecretKey as the password. Saving replaces the current user COS binding.'
-        if ($null -eq $credential) { Fail 'INTEGRATION_USER_CANCELLED' }
+        $stage = 'credential-prompt'
+        $credential = Request-SecretCredential -Title 'Shiguang COS secure setup' -Message 'Enter SecretId and SecretKey. Saving replaces the current user COS binding.' -UserNameRequired $true -DefaultUserName ''
+        $stage = 'config-write'
         $secretId = $credential.UserName
         $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($credential.Password)
         $secretKey = $null
@@ -251,5 +335,7 @@ try {
 
     Fail 'INTEGRATION_ACTION_INVALID'
 } catch {
+    if ($stage -ceq 'credential-prompt') { Fail 'INTEGRATION_CREDENTIAL_PROMPT_FAILED' }
+    if ($stage -ceq 'config-write') { Fail 'INTEGRATION_CONFIG_WRITE_FAILED' }
     Fail 'INTEGRATION_CONFIGURATOR_FAILED'
 }

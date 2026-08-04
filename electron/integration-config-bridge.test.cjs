@@ -69,3 +69,12 @@ test('secure writer replaces an existing config without the unsupported null bac
   assert.match(script, /Move-Item -LiteralPath \$temporary -Destination \$Path -Force/);
   assert.doesNotMatch(script, /\[IO\.File\]::Replace\([^\r\n]+\$null\)/);
 });
+
+test('credential input uses an isolated masked Windows dialog and stable stage errors', () => {
+  const script = fs.readFileSync(path.join(__dirname, 'integration-configurator.ps1'), 'utf8');
+  assert.match(script, /UseSystemPasswordChar = \$true/);
+  assert.match(script, /Request-SecretCredential/);
+  assert.doesNotMatch(script, /Get-Credential/);
+  assert.match(script, /INTEGRATION_CREDENTIAL_PROMPT_FAILED/);
+  assert.match(script, /INTEGRATION_CONFIG_WRITE_FAILED/);
+});
