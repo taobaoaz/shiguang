@@ -8,9 +8,9 @@ test('AI and COS settings entries are NodeGateway-owned and expose no direct cre
     assert.equal(entry.configurationOwner, 'nodegateway');
     assert.equal(entry.credentialOwner, 'nodegateway');
     assert.equal(entry.directConnectionAllowed, false);
+    assert.equal(entry.setupMode, 'windows-secure-broker');
+    assert.equal(entry.secretInputSurface, 'native-os-prompt');
   }
-  assert.equal(SHIGUANG_INTEGRATIONS.ai.lifecycleState, 'pending');
-  assert.equal(SHIGUANG_INTEGRATIONS.cos.lifecycleState, 'active');
 });
 
 test('settings entries keep AI inference and COS persistence as separate capabilities', () => {

@@ -20,3 +20,10 @@ contextBridge.exposeInMainWorld('shiguangGateway', Object.freeze({
   pullState: () => invoke('shiguang:gateway:pull-state'),
   pushState: (state) => invoke('shiguang:gateway:push-state', { state }),
 }));
+
+contextBridge.exposeInMainWorld('shiguangIntegrations', Object.freeze({
+  status: () => invoke('shiguang:integrations:status'),
+  configure: (kind, config) => invoke('shiguang:integrations:configure', { kind, config }),
+  test: (kind) => invoke('shiguang:integrations:test', { kind }),
+  startRuntime: () => invoke('shiguang:integrations:start-runtime'),
+}));

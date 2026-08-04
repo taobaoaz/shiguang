@@ -1,7 +1,7 @@
 {
   "name": "shiguang",
   "private": true,
-  "version": "2.3.4",
+  "version": "2.3.5",
   "description": "拾光 · 网络与信息化个人工作台",
   "author": "拾光",
   "type": "module",
@@ -25,6 +25,9 @@
       "dist/**/*",
       "electron/**/*",
       "!electron/**/*.test.cjs"
+    ],
+    "asarUnpack": [
+      "electron/integration-configurator.ps1"
     ],
     "win": {
       "target": [

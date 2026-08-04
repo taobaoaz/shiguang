@@ -46,5 +46,22 @@ declare global {
       pullState(): Promise<GatewayResult<PullStateResult>>;
       pushState(state: ShiguangState): Promise<GatewayResult<VersionReceipt>>;
     }>;
+    shiguangIntegrations?: Readonly<{
+      status(): Promise<GatewayResult<IntegrationConfigResult>>;
+      configure(kind: 'ai', config: { endpoint: string; model: string }): Promise<GatewayResult<IntegrationConfigResult>>;
+      configure(kind: 'cos', config: { bucket: string; region: string }): Promise<GatewayResult<IntegrationConfigResult>>;
+      test(kind: 'ai'): Promise<GatewayResult<IntegrationConfigResult>>;
+      startRuntime(): Promise<GatewayResult<IntegrationConfigResult>>;
+    }>;
   }
+}
+
+interface IntegrationConfigResult {
+  schemaVersion: 'shiguang.integration-config-result.v1';
+  ok: boolean;
+  code: string;
+  kind?: 'ai' | 'cos' | 'runtime';
+  runtime?: { taskInstalled: boolean; taskState: string };
+  ai?: { configured: boolean; endpointHost: string | null; model: string | null };
+  cos?: { configured: boolean; bucket: string | null; region: string | null };
 }

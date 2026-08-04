@@ -18,7 +18,7 @@
 - 工作统计：仅统计当前工作台真实数据，不展示演示指标
 - 五层工作流：收到工作、分类工作、正在干的、干完的、归档的
 - AI 状态整理：只接受后端受限接口返回的候选分类，不把建议伪装成已完成
-- 设置：独立的 AI 接入、COS 接入、外观和本地状态入口
+- 设置：独立且可操作的 AI、COS 与本地底座接入入口；密钥只在 Windows 原生安全提示中输入
 - 同步诊断：显示远端 Head、版本、拉取/提交时间、状态代码和冲突版本，冲突时阻断覆盖
 - 移动交互：底部主导航、更多功能抽屉、全屏搜索、44px 触控目标、横向阶段滑动和底部表单
 
@@ -27,7 +27,7 @@
 - COS 是业务文件与状态的唯一持久化真源
 - 应用状态为 `paw.shiguang.state.v2`；旧 v1 仅在首次远端接管时迁移
 - 拾光不直连 COS，不持有 COS 或 CAM 凭据
-- AI 与 COS 均只通过 NodeGateway；拾光不保存模型 API Key，也不提供云凭据输入框
+- AI 与 COS 均只通过 NodeGateway。renderer 只处理 endpoint/model 与 bucket/region；模型 API Key、SecretId、SecretKey 不进入网页界面、IPC payload、日志、业务状态或 COS
 - Electron 只保留界面偏好；业务状态不写浏览器持久化，也不创建额外业务缓存
 - NodeGateway 是唯一允许的业务缓存与同步出口；后台定时拉取只在本地无未提交变更时更新
 - 多远端 head 或删除提案状态会阻断提交，不做自动覆盖
@@ -99,6 +99,15 @@ React renderer → preload 固定 IPC → Electron main → 127.0.0.1 NodeGatewa
 ```
 
 主进程继续使用既有六条 Shiguang 路由，renderer 只获得实时状态、拉取状态和提交状态三个高层能力。生产启动通过固定 DPAPI helper 读取令牌，并在全局 README 门禁通过后处理业务请求。C·ONE 只读取拾光的 DailyBrief 视图；现有功能与四个任务零修改，也没有扩展或绕过 NodeGateway 契约。
+
+设置页的接入配置走另一条固定本机安全控制链：
+
+```text
+renderer 非秘密字段 → 固定 IPC schema → Windows 安全配置器 → NodeGateway 配置
+                              └─ API Key / SecretId / SecretKey 仅在原生凭据提示中输入
+```
+
+AI API Key 使用 DPAPI CurrentUser 保存；COS 继续使用 NodeGateway 既有受限 `cos.env`。配置器只返回脱敏状态，不创建通用代理，不静默安装计划任务，也不会自动发送 AI 测试请求。
 
 ## 验证
 

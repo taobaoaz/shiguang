@@ -6,7 +6,8 @@ export const SHIGUANG_INTEGRATIONS = {
     configurationOwner: 'nodegateway',
     credentialOwner: 'nodegateway',
     directConnectionAllowed: false,
-    lifecycleState: 'pending',
+    setupMode: 'windows-secure-broker',
+    secretInputSurface: 'native-os-prompt',
   },
   cos: {
     id: 'cos-connection',
@@ -15,6 +16,7 @@ export const SHIGUANG_INTEGRATIONS = {
     configurationOwner: 'nodegateway',
     credentialOwner: 'nodegateway',
     directConnectionAllowed: false,
-    lifecycleState: 'active',
+    setupMode: 'windows-secure-broker',
+    secretInputSurface: 'native-os-prompt',
   },
 } as const;

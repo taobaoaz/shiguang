@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -66,7 +67,7 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
     };
   }, [open, onClose]);
 
-  return (
+  const content = (
     <AnimatePresence>
       {open && (
         <motion.div
@@ -175,4 +176,6 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
       )}
     </AnimatePresence>
   );
+
+  return createPortal(content, document.body);
 };

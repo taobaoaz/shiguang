@@ -8,6 +8,7 @@ const {
   createSafeIpcHandler,
 } = require('./nodegateway-client.cjs');
 const { loadClientToken } = require('./client-token-bridge.cjs');
+const { createIntegrationConfigBridge, createSafeIntegrationIpcHandler } = require('./integration-config-bridge.cjs');
 const { buildGatewayEnvironment, isAllowedRendererUrl, isTrustedIpcEvent } = require('./security-policy.cjs');
 
 app.commandLine.appendSwitch('disable-http-cache');
@@ -27,6 +28,10 @@ const RUNTIME_PARTITION = 'shiguang-runtime';
 const WORK_DISK_PATH = 'D:\\拾光工作盘';
 let gatewayClient = createNodeGatewayClient({});
 let mainWindow = null;
+const integrationBridge = createIntegrationConfigBridge({
+  isDev,
+  resourcesPath: process.resourcesPath,
+});
 
 function compareVersions(a, b) {
   const parse = (value) => {
@@ -180,6 +185,10 @@ function registerIpc() {
     'shiguang:gateway:status': createSafeIpcHandler(() => gatewayClient.status(), trusted),
     'shiguang:gateway:pull-state': createSafeIpcHandler(() => gatewayClient.pullState(), trusted),
     'shiguang:gateway:push-state': createSafeIpcHandler((input) => gatewayClient.pushState(input), trusted),
+    'shiguang:integrations:status': createSafeIntegrationIpcHandler(() => integrationBridge.status(), trusted),
+    'shiguang:integrations:configure': createSafeIntegrationIpcHandler((input) => integrationBridge.configure(input), trusted),
+    'shiguang:integrations:test': createSafeIntegrationIpcHandler((input) => integrationBridge.test(input), trusted),
+    'shiguang:integrations:start-runtime': createSafeIntegrationIpcHandler(() => integrationBridge.startRuntime(), trusted),
   };
   for (const [channel, handler] of Object.entries(handlers)) {
     ipcMain.removeHandler(channel);
